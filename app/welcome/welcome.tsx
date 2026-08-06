@@ -1,97 +1,65 @@
-import { useEffect, useRef, useState } from "react"
+import { useRef, useState } from "react"
 
-
-type MapProps = {
+type Position = {
   x?:number
   y?:number
 }
 
-function filterPositionFromStyle(style:string | null): MapProps{
-  if(!style)return {x:0, y:0};
-  let location:MapProps | null = {};
+export function Welcome(){
 
-  style.split(";").map(item => {
-    
-    if(item){
-        if(item.includes("row")){
-          location.y = parseInt(item.split(":")[1]);  
-        }
-        else{
-          location.x = parseInt(item.split(":")[1]);  
-        }
-    }
-  
-  });
+  const [boxPosition, setBoxPosition] = useState<Record<string, Position>>( { "box_1":{x:0, y:0} });
+  const selectedTarget = useRef<string | null>(null);
+  const pointerOffset = useRef<Position>({x:0, y:0 });
+
+  const HandleMove = (event: React.PointerEvent)=>{
+
+    if(!selectedTarget.current)return;
 
 
-  return location;
+    const rect = event.currentTarget.getBoundingClientRect();
 
-}
+    const x = (event.clientX - rect.left) - (pointerOffset.current.x ?? 0);
+    const y = (event.clientY - rect.top) - (pointerOffset.current.y ?? 0) ;
 
-export function Welcome() {
-
-  const [children, setChildren] = useState<MapProps[]>([]);
-  let dragOverPosition = useRef<EventTarget | null>(null); 
-  const [selectedElement, setSelectedElement] = useState<EventTarget | null>(null);
-
-
-  const [boxPosition, setBoxPosition] = useState<MapProps>({ x:10, y:10 });
-
-  
-  const addChildren = ()=>{
-    let cells: MapProps[] = [];  
-
-    for(let y = 1; y < 60; y++){
-      for(let x = 1; x < 60; x++){
-        cells.push({ x, y });
-      }
-    }
-
-    setChildren(cells);
+    const box = selectedTarget.current 
+   setBoxPosition(prev => ({...prev,[box]: { x, y } }));
   }
 
-  const continerRef = useRef(null);
+  const HandlePointerDown = (event: React.PointerEvent)=>{
 
-  useEffect(()=>{
-    addChildren();
-  }, [])
+    if(event.target instanceof HTMLElement){
 
-  const handleDragEnd = (event: React.DragEvent<HTMLDivElement>) =>{
+      if(event.target.getAttribute("id") === "container")return;
 
+      const rect = event.target.getBoundingClientRect();
 
-    event.preventDefault();
+      const x = event.clientX - rect.left;
+      const y = event.clientY - rect.top;
 
-    let newPosition:MapProps = {};
-
-    if (dragOverPosition.current instanceof HTMLElement) {
-      newPosition = filterPositionFromStyle(dragOverPosition.current.getAttribute("style"));   
-   }
-    
-   
-    if(event.target instanceof HTMLElement) {
-      console.log(newPosition);
-      setBoxPosition({ x: newPosition.x, y: newPosition.y })
-      
+      selectedTarget.current = event.target.getAttribute("id"); 
+      pointerOffset.current = {x, y};
     }
-
   }
 
-  const handleDragOver = (event: React.DragEvent<HTMLDivElement>) =>{
-    event.preventDefault();
-    dragOverPosition.current = event.target;
+  const HandlePointerUp = (event: React.PointerEvent)=>{
+    selectedTarget.current = null;
+    pointerOffset.current = { x:0, y:0};
   }
-
 
   return(
-    <div onDragEnd={handleDragEnd} onDragOver={handleDragOver}  ref={continerRef} className="bg-amber-300 w-full h-full box" >
-      {
-        children.map(child => <div key={`${child.x} ${child.y}`} style={{ gridColumnStart:child.x, gridRowStart:child.y }}></div>   )
-      }
+    <div 
+    id="container"
+    onPointerDown={HandlePointerDown} 
+    onPointerMove={HandleMove}
+    onPointerUp={HandlePointerUp}  className="bg-yellow-400 w-full h-full relative " >
 
-      <div draggable="true" style={{ gridColumnStart:boxPosition.x, gridRowStart: boxPosition.y  }} className="bg-yellow-900 col-span-3 row-span-3" >
-
+      <div
+        id="box_1"
+        style={{ top: boxPosition["box_1"].y , left:boxPosition["box_1"].x }}  
+        className="bg-amber-600 absolute w-40 aspect-square right-32 " >
+        
       </div>
-    
+
     </div>
   )
 }

@@ -17,8 +17,3 @@ body {
   } */
 }
 
-.box{
-  display: grid;
-  grid-template-columns: repeat("auto-fit", minmax(1px,1fr));
-  grid-template-rows: repeat("auto-fit", minmax(1px,1fr));
-}
