@@ -7,6 +7,7 @@ type pageEditProps = {
     pointerOffset: React.RefObject<Position>,
     setElements: (value: React.SetStateAction<Record<string, ElementState>>) => void,
     selectedMode: React.RefObject<Modes>,
+    mode:Modes
 
 }
 
@@ -42,7 +43,9 @@ export const handlePointerMove = ({ selectedTarget, selectedMode, event, pointer
 };
 
 
-export const createNewBox = ({ event, setElements }: Partial<pageEditProps>) => {
+export const createNewBox = ({ event, setElements, mode }: Partial<pageEditProps>) => {
+    if(mode === Modes.GRAB)return;
+
     const boxID = crypto.randomUUID();
     const container = event!.currentTarget.getBoundingClientRect();
     const x = event!.clientX - container.left - 80;
@@ -71,11 +74,12 @@ export const createNewBox = ({ event, setElements }: Partial<pageEditProps>) => 
 };
 
 
-export const handlePointerDownContainer = ({ event, setElements, selectedMode, selectedTarget, pointerOffset }: Partial<pageEditProps>) => {
+export const handlePointerDownContainer = ({ event, setElements, selectedMode, selectedTarget, pointerOffset, mode }: Partial<pageEditProps>) => {
+    
     const target = event!.target as HTMLElement;
 
     if (target.id === "canvas-container") {
-        createNewBox({ event, setElements });
+        createNewBox({ event, setElements, mode });
         return;
     }
 
@@ -95,6 +99,7 @@ export const handlePointerDownContainer = ({ event, setElements, selectedMode, s
 
     setElements!((prev) => {
         const nextState: Record<string, ElementState> = {};
+
         Object.keys(prev).forEach((id) => {
             nextState[id] = {
                 ...prev[id],

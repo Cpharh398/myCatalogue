@@ -16,7 +16,7 @@ export function Canvas() {
   return (
     <div
       id="canvas-container"
-      onPointerDown={event => handlePointerDownContainer({ event, setElements, selectedMode, selectedTarget, pointerOffset  })}
+      onPointerDown={event => handlePointerDownContainer({ event, setElements, selectedMode, selectedTarget, pointerOffset, mode:activeTool  })}
       onPointerMove={event => handlePointerMove({ event, pointerOffset, selectedMode,selectedTarget, setElements})}
       onPointerUp={event => handlePointerUp({ selectedMode, selectedTarget })}
       className="bg-slate-100 w-full h-screen relative overflow-hidden select-none"
