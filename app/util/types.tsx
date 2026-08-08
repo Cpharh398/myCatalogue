@@ -25,7 +25,12 @@ export type ElementState = {
 };
 
 enum Modes {
-  normal,
+  GRAB,
+  CONTAINER,
+  VIDEO,
+  AUDIO,
+  PICTURE,
+  TEXT
 }
 
 export default Modes;

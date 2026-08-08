@@ -109,7 +109,7 @@ const getCornerButtonClass = (
             onChange={(e) =>
               handleRadiusChange(Number(e.target.value))
             }
-            className="w-8 bg-slate-700 text-white text-[10px] rounded px-1 text-center"
+            className="w-12 bg-slate-700 text-white text-[10px] rounded px-1 text-center"
           />
 
         </div>

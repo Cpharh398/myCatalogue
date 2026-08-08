@@ -36,7 +36,7 @@ export const updateElementsPosition = ({ event, selectedTarget, pointerOffset, s
 export const handlePointerMove = ({ selectedTarget, selectedMode, event, pointerOffset, setElements }: Partial<pageEditProps>) => {
     if (!selectedTarget!.current) return;
 
-    if (selectedMode!.current === Modes.normal) {
+    if (selectedMode!.current === Modes.GRAB) {
         updateElementsPosition({ event, pointerOffset, selectedTarget, setElements });
     }
 };
@@ -84,7 +84,7 @@ export const handlePointerDownContainer = ({ event, setElements, selectedMode, s
 
     const boxId = elementNode.getAttribute("data-element-id")!;
 
-    selectedMode!.current = Modes.normal;
+    selectedMode!.current = Modes.GRAB;
     selectedTarget!.current = boxId;
 
     const rect = elementNode.getBoundingClientRect();
@@ -107,7 +107,7 @@ export const handlePointerDownContainer = ({ event, setElements, selectedMode, s
 
 
 export const handlePointerUp = ({ selectedMode, selectedTarget }: Partial<pageEditProps>) => {
-    selectedMode!.current = Modes.normal;
+    selectedMode!.current = Modes.GRAB;
     selectedTarget!.current = null;
 };
 
