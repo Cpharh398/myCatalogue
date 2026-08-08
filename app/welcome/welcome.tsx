@@ -216,21 +216,26 @@ type ToolBoxProps = {
   ) => void;
 };
 
+
+
 export function ToolBox({ isVisible, element, onUpdateStyle }: ToolBoxProps) {
 
   if (!isVisible) return null;
-  
-  const selectedCorners = useRef<Set<keyof BorderRadius>>(new Set());
+
+  const [borderRadiusValue, setBorderRadiusValue ] = useState<number>(0);
+  const [selectedCorners, setSelectedCorners] = useState<Partial<Record<keyof BorderRadius, number>>>({});
 
   const handleRadiusChange = (value: number) => {
-  const clamped = Math.min(Math.max(value, 0), 100);
+    const clamped = Math.min(Math.max(value, 0), 100);
+    setBorderRadiusValue(clamped);
 
   onUpdateStyle((prev) => {
     const borderRadius = { ...prev.borderRadius };
 
-    selectedCorners.current.forEach((corner) => {
-      borderRadius[corner] = clamped;
-    });
+  (Object.keys(selectedCorners) as (keyof BorderRadius)[])
+      .forEach((corner) => {
+        borderRadius[corner] = borderRadiusValue;
+      });
 
     return {
       ...prev,
@@ -239,15 +244,38 @@ export function ToolBox({ isVisible, element, onUpdateStyle }: ToolBoxProps) {
   });
 };
 
-const ToogleCorner = (coner: keyof BorderRadius)=>{
-    if(selectedCorners.current.has(coner)){
-      selectedCorners.current.delete(coner);
-    } else{
-      selectedCorners.current.add(coner)
-    } 
-    
+const toggleCornerSelection = (corner: keyof BorderRadius) => {
 
-}
+  if (corner in selectedCorners) {
+    const updated = { ...selectedCorners };
+
+    delete updated[corner];
+    setSelectedCorners(updated);
+
+  } else {
+
+    const updated = {
+      ...selectedCorners,
+      [corner]: element.borderRadius[corner],
+    }
+    
+    setSelectedCorners(updated);
+    handleRadiusChange(borderRadiusValue);
+  }
+};
+
+
+const getCornerButtonClass = (
+    corner: keyof BorderRadius,
+    borderStyles: string
+  ) => {
+    const isSelected = corner in selectedCorners;
+    return `w-4 h-4 cursor-pointer transition-all border-slate-300 ${borderStyles} ${
+      isSelected
+        ? "bg-blue-600 border-blue-300 ring-2 ring-blue-400 scale-110"
+        : "bg-slate-800 hover:bg-slate-700 opacity-60 hover:opacity-100"
+    }`;
+  };
 
   return (
     <div
@@ -258,22 +286,39 @@ const ToogleCorner = (coner: keyof BorderRadius)=>{
         <span className="text-[10px] text-slate-400">Radius (%)</span>
         <div className="flex gap-2">
 
-          <div onClick={() => ToogleCorner("radiusTL")}  className="bg-slate-800 w-4 outline-1 aspect-square  border-l-2 border-t-2   " />
-          <div onClick={() => ToogleCorner("radiusTR")} className="bg-slate-800 w-4 aspect-square  border-b-2 border-r-2   " />
-          <div onClick={() => ToogleCorner("radiusBL")} className="bg-slate-800 w-4 aspect-square  border-t-2 border-l-2   " />
-          <div onClick={() => ToogleCorner("radiusBR")} className="bg-slate-800 w-4 aspect-square  border-b-2 border-l-2   " />
-
+          <div className="flex items-center gap-1">
+            <div
+              title="Top-Left"
+              onClick={() => toggleCornerSelection("radiusTL")}
+              className={getCornerButtonClass("radiusTL", "border-l-2 border-t-2 rounded-tl-sm")}
+            />
+            <div
+              title="Top-Right"
+              onClick={() => toggleCornerSelection("radiusTR")}
+              className={getCornerButtonClass("radiusTR", "border-r-2 border-t-2 rounded-tr-sm")}
+            />
+            <div
+              title="Bottom-Left"
+              onClick={() => toggleCornerSelection("radiusBL")}
+              className={getCornerButtonClass("radiusBL", "border-l-2 border-b-2 rounded-bl-sm")}
+            />
+            <div
+              title="Bottom-Right"
+              onClick={() => toggleCornerSelection("radiusBR")}
+              className={getCornerButtonClass("radiusBR", "border-r-2 border-b-2 rounded-br-sm")}
+            />
+          </div>
           <input
             type="number"
             min={0}
             max={100}
+            value={`${borderRadiusValue}`}
+            placeholder={`${borderRadiusValue}`}
             onChange={(e) =>
               handleRadiusChange(Number(e.target.value))
             }
             className="w-8 bg-slate-700 text-white text-[10px] rounded px-1 text-center"
           />
-
-
 
         </div>
       </div>
@@ -297,7 +342,7 @@ const ToogleCorner = (coner: keyof BorderRadius)=>{
         <input
           type="number"
           min={0}
-          max={20}
+          max={100}
           value={element.borderWidth}
           onChange={(e) =>
             onUpdateStyle(() => ({ borderWidth: Number(e.target.value) }))
