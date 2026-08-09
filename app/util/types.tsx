@@ -10,7 +10,12 @@ export type BorderRadius = {
   radiusBR: number;
 };
 
-export type ElementState = {
+export type Size = {
+    width:number;
+    height:number;
+};
+
+export type ElementAttr = {
   position: Position;
   borderRadius: BorderRadius;
   borderColor: string;
@@ -22,9 +27,18 @@ export type ElementState = {
   gradientEnd: string;
   gradientAngle: number;
   showToolBox?: boolean;
+  size?:Size;
+  currentState?:CurrentState
 };
 
-enum Modes {
+
+export enum CurrentState {
+    DRAG,
+    DROPPED,
+    RESIZING
+}
+
+export enum Modes {
   GRAB,
   CONTAINER,
   VIDEO,
@@ -33,6 +47,5 @@ enum Modes {
   TEXT
 }
 
-export default Modes;
 
 

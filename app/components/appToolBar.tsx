@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import Modes from "~/util/types";
+import {Modes} from "~/util/types";
 
 type ToolbarProps = {
   activeTool: Modes;

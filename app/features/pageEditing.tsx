@@ -1,19 +1,23 @@
-import type { ElementState, Position } from "~/util/types";
-import Modes from "~/util/types";
+import { CurrentState, type ElementAttr, type Position } from "~/util/types";
+import {Modes} from "~/util/types";
 
 type pageEditProps = {
     event: React.PointerEvent,
     selectedTarget: React.RefObject<string | null>,
     pointerOffset: React.RefObject<Position>,
-    setElements: (value: React.SetStateAction<Record<string, ElementState>>) => void,
+    setElements: (value: React.SetStateAction<Record<string, ElementAttr>>) => void,
     selectedMode: React.RefObject<Modes>,
     mode:Modes
-
+    setActiveTool: React.Dispatch<React.SetStateAction<Modes>>
+    elementState: CurrentState
+    setElementState: React.Dispatch<React.SetStateAction<CurrentState>>
 }
 
-export const updateElementsPosition = ({ event, selectedTarget, pointerOffset, setElements}: Partial<pageEditProps>) => {
 
-    if (!selectedTarget!.current) return;
+
+export const updateElementsPosition = ({ event, selectedTarget, pointerOffset, setElements, elementState}: Partial<pageEditProps>) => {
+
+    if (!selectedTarget!.current || elementState === CurrentState.RESIZING) return;
     const boxId = selectedTarget!.current;
 
     const container = document.getElementById("canvas-container");
@@ -34,16 +38,17 @@ export const updateElementsPosition = ({ event, selectedTarget, pointerOffset, s
 };
 
 
-export const handlePointerMove = ({ selectedTarget, selectedMode, event, pointerOffset, setElements }: Partial<pageEditProps>) => {
+export const handlePointerMove = ({ selectedTarget, selectedMode, event, pointerOffset, setElements, elementState }: Partial<pageEditProps>) => {
     if (!selectedTarget!.current) return;
 
     if (selectedMode!.current === Modes.GRAB) {
-        updateElementsPosition({ event, pointerOffset, selectedTarget, setElements });
+        updateElementsPosition({ event, pointerOffset, selectedTarget, setElements, elementState });
     }
 };
 
 
 export const createNewBox = ({ event, setElements, mode }: Partial<pageEditProps>) => {
+
     if(mode === Modes.GRAB)return;
 
     const boxID = crypto.randomUUID();
@@ -56,7 +61,7 @@ export const createNewBox = ({ event, setElements, mode }: Partial<pageEditProps
         ...Object.keys(prev).reduce((acc, key) => {
             acc[key] = { ...prev[key], showToolBox: false };
             return acc;
-        }, {} as Record<string, ElementState>),
+        }, {} as Record<string, ElementAttr>),
         [boxID]: {
             showToolBox: true,
             position: { x, y },
@@ -69,6 +74,8 @@ export const createNewBox = ({ event, setElements, mode }: Partial<pageEditProps
             gradientStart: "#ec4899",
             gradientEnd: "#8b5cf6",
             gradientAngle: 135,
+            size: { width:11, height: 11 },
+            currentState:CurrentState.DRAG
         },
     }));
 };
@@ -98,7 +105,7 @@ export const handlePointerDownContainer = ({ event, setElements, selectedMode, s
     };
 
     setElements!((prev) => {
-        const nextState: Record<string, ElementState> = {};
+        const nextState: Record<string, ElementAttr> = {};
 
         Object.keys(prev).forEach((id) => {
             nextState[id] = {
@@ -111,12 +118,13 @@ export const handlePointerDownContainer = ({ event, setElements, selectedMode, s
 };
 
 
-export const handlePointerUp = ({ selectedMode, selectedTarget }: Partial<pageEditProps>) => {
+export const handlePointerUp = ({ selectedMode, selectedTarget, setElementState }: Partial<pageEditProps>) => {
     selectedMode!.current = Modes.GRAB;
     selectedTarget!.current = null;
+    setElementState!(_ => CurrentState.DRAG);
 };
 
-export const updateElementStyle = (id: string, updater: (prev: ElementState) => Partial<ElementState>, setElements: (value: React.SetStateAction<Record<string, ElementState>>) => void) => {
+export const updateElementStyle = (id: string, updater: (prev: ElementAttr) => Partial<ElementAttr>, setElements: (value: React.SetStateAction<Record<string, ElementAttr>>) => void) => {
 
     setElements!((prev) => ({
         ...prev,

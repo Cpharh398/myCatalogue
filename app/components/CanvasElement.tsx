@@ -1,15 +1,20 @@
-import type { ElementState } from "~/util/types";
+import type { ElementAttr } from "~/util/types";
 import { ToolBox } from "./hoveringToolbox";
+import type React from "react";
 
 type ElementProps = {
   id: string;
-  element: ElementState;
+  element: ElementAttr;
   onUpdateStyle: (
-    updater: (prev: ElementState) => Partial<ElementState>
+    updater: (prev: ElementAttr) => Partial<ElementAttr>
   ) => void;
+  onUpdateSize:(
+    (event: React.PointerEvent)=>void
+  );
+  onSelectResizeCorner:(event: React.PointerEvent)=>void;
 };
 
-export function CanvasElement({ id, element, onUpdateStyle }: ElementProps) {
+export function CanvasElement({ id, element, onUpdateStyle, onUpdateSize, onSelectResizeCorner }: ElementProps) {
 
   const getBackgroundStyle = () => {
     if (element.useGradient) {
@@ -18,23 +23,35 @@ export function CanvasElement({ id, element, onUpdateStyle }: ElementProps) {
     return element.backgroundColor;
   };
 
+
   return (
     <div
       data-element-id={id}
-      style={{
-        top: element.position.y,
-        left: element.position.x,
-        borderTopLeftRadius: `${element.borderRadius.radiusTL}%`,
-        borderTopRightRadius: `${element.borderRadius.radiusTR}%`,
-        borderBottomLeftRadius: `${element.borderRadius.radiusBL}%`,
-        borderBottomRightRadius: `${element.borderRadius.radiusBR}%`,
-        borderWidth: `${element.borderWidth}px`,
-        borderColor: element.borderColor,
-        borderStyle: element.borderStyle,
-        background: getBackgroundStyle(),
-      }}
-      className="absolute w-44 h-44 shadow-md cursor-grab active:cursor-grabbing flex flex-col justify-between"
+      style={
+          {
+          top: element.position.y,
+          left: element.position.x,
+          borderTopLeftRadius: `${element.borderRadius.radiusTL}%`,
+          borderTopRightRadius: `${element.borderRadius.radiusTR}%`,
+          borderBottomLeftRadius: `${element.borderRadius.radiusBL}%`,
+          borderBottomRightRadius: `${element.borderRadius.radiusBR}%`,
+          borderWidth: `${element.borderWidth}px`,
+          borderColor: element.borderColor,
+          borderStyle: element.borderStyle,
+          background: getBackgroundStyle(),
+          width: `${element.size?.width}rem` ,
+          height: `${element.size?.height}rem`,
+          transformOrigin:"left center"
+        }
+      }
+
+      className={`absolute transition-all shadow-md cursor-grab active:cursor-grabbing flex flex-col justify-between`}
     >
+
+      {
+        ...ResizingHandles({ onUpdateSize, onSelectResizeCorner })
+      }
+
       <ToolBox
         isVisible={element.showToolBox ?? false}
         element={element}
@@ -42,4 +59,39 @@ export function CanvasElement({ id, element, onUpdateStyle }: ElementProps) {
       />
     </div>
   );
+}
+
+export function ResizingHandles({ onUpdateSize , onSelectResizeCorner}:Partial<ElementProps>) {
+  
+  const handleStyle =
+    "bg-white border-2 border-blue-500 rounded-full absolute z-20 shadow transition-transform hover:scale-125";
+
+
+  const resizePoints:{ point:string, position:string  }[] = 
+  [ 
+    { point:"tl", position: "-top-2 -left-2 w-4 h-4 cursor-nwse-resize" }, 
+    { point:"tr", position:"-top-2 -right-2 w-4 h-4  cursor-nesw-resize" }, 
+    {  point:"bl", position:"-bottom-2 -left-2 w-4 h-4 cursor-nesw-resize" }, 
+    { point:"br", position:"-bottom-2 -right-2 w-4 h-4 cursor-nwse-resize" },
+
+    { point:"top", position:"-top-2 h-4 w-[50%] translate-x-1/2 cursor-n-resize" },  
+    { point:"bottom", position:"-bottom-2  h-4 w-[50%] translate-x-1/2 cursor-s-resize " },  
+    { point:"left", position:"-left-2  w-4 h-[50%] translate-y-1/2 cursor-ew-resize" },  
+    { point:"right", position:"-right-2  w-4 h-[50%] translate-y-1/2 cursor-ew-resize " },  
+  ]
+
+  return (
+    [
+      resizePoints.map(point =>  <div
+        key={point.point}
+        data-corner={point.point}
+        onPointerMove={(event) => onUpdateSize!(event) }
+        onPointerDown={ (event) =>  onSelectResizeCorner!(event) }
+        className={` ${handleStyle} absolute  ${point.position} scale-125 ring-2 ring-blue-300`}
+      />  )
+    ]
+
+  );
+
+
 }
