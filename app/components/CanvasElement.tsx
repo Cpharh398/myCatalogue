@@ -8,13 +8,9 @@ type ElementProps = {
   onUpdateStyle: (
     updater: (prev: ElementAttr) => Partial<ElementAttr>
   ) => void;
-  onUpdateSize:(
-    (event: React.PointerEvent)=>void
-  );
-  onSelectResizeCorner:(event: React.PointerEvent)=>void;
 };
 
-export function CanvasElement({ id, element, onUpdateStyle, onUpdateSize, onSelectResizeCorner }: ElementProps) {
+export function CanvasElement({ id, element, onUpdateStyle }: ElementProps) {
 
   const getBackgroundStyle = () => {
     if (element.useGradient) {
@@ -45,11 +41,11 @@ export function CanvasElement({ id, element, onUpdateStyle, onUpdateSize, onSele
         }
       }
 
-      className={`absolute transition-all shadow-md cursor-grab active:cursor-grabbing flex flex-col justify-between`}
+      className={`absolute transition-transform shadow-md cursor-grab active:cursor-grabbing flex flex-col justify-between`}
     >
 
       {
-        ...ResizingHandles({ onUpdateSize, onSelectResizeCorner })
+        ...ResizingHandles()
       }
 
       <ToolBox
@@ -61,7 +57,7 @@ export function CanvasElement({ id, element, onUpdateStyle, onUpdateSize, onSele
   );
 }
 
-export function ResizingHandles({ onUpdateSize , onSelectResizeCorner}:Partial<ElementProps>) {
+export function ResizingHandles() {
   
   const handleStyle =
     "bg-white border-2 border-blue-500 rounded-full absolute z-20 shadow transition-transform hover:scale-125";
@@ -84,9 +80,7 @@ export function ResizingHandles({ onUpdateSize , onSelectResizeCorner}:Partial<E
     [
       resizePoints.map(point =>  <div
         key={point.point}
-        data-corner={point.point}
-        onPointerMove={(event) => onUpdateSize!(event) }
-        onPointerDown={ (event) =>  onSelectResizeCorner!(event) }
+        data-resizepoint={point.point}
         className={` ${handleStyle} absolute  ${point.position} scale-125 ring-2 ring-blue-300`}
       />  )
     ]
