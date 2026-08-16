@@ -15,15 +15,15 @@ export function Canvas() {
   const selectedTarget = useRef<string | null>(null);
   const pointerOffset = useRef<Position>({ x: 0, y: 0 });
   const selectedResizeBorder = useRef<string | null>(null);
-
+  const cursorStyle = useRef<"cursor-ns-resize" | "cursor-ew-resize" | "cursor-nwse-resize" | "cursor-nesw-resize" | null>(null);
 
   return (
     <div
       id="canvas-container"
-      onPointerDown={event => handlePointerDownContainer({ event, setElements, selectedMode, selectedTarget, pointerOffset, activeTool:activeTool, setActiveTool , setElementState, selectedResizeBorder })}
+      onPointerDown={event => handlePointerDownContainer({ event,cursorStyle, setElements, selectedMode, selectedTarget, pointerOffset, activeTool:activeTool, setActiveTool , setElementState, selectedResizeBorder })}
       onPointerMove={event => handlePointerMove({ event, pointerOffset, selectedMode, selectedTarget, setElements, elementState, selectedResizeBorder })}
-      onPointerUp={event => handlePointerUp({ selectedMode, selectedTarget, setElementState, selectedResizeBorder  })}
-      className="bg-slate-100 w-full h-screen relative overflow-hidden select-none"
+      onPointerUp={event => handlePointerUp({ selectedMode, selectedTarget, setElementState, cursorStyle,selectedResizeBorder  })}
+      className={`bg-slate-100 w-full h-screen relative overflow-hidden select-none  ${cursorStyle.current !== null ? cursorStyle.current : "" }`}
     >
       <Toolbar
       activeTool={activeTool}

@@ -12,16 +12,17 @@ type pageEditProps = {
     elementState: CurrentState
     setElementState: React.Dispatch<React.SetStateAction<CurrentState>>
     selectedResizeBorder: React.RefObject<string | null>
+    cursorStyle: React.RefObject<string | null>
 }
 
 
 const resizeCanvasElement = ({ event, elementState, pointerOffset, setElements, selectedResizeBorder }: Partial<pageEditProps>) => {
-
-
+    
+    
     if (elementState === CurrentState.RESIZING) {
-
+        
         const cornerResizePoints = ["br", "tr", "bl", "tl"]
-
+        
         if (cornerResizePoints.includes(selectedResizeBorder!.current!)) {
             HandleCornerResize({ pointerOffset, event, setElements, selectedResizeBorder });
         } else {
@@ -30,26 +31,30 @@ const resizeCanvasElement = ({ event, elementState, pointerOffset, setElements, 
     }
 };
 
+
 export const HandleCornerResize = (props: Partial<pageEditProps>) => {
   if (!props.event || !props.pointerOffset?.current || !props.setElements) return;
 
   const target = props.event.target as HTMLElement;
   const selectedElementID = target?.parentElement?.dataset.elementId as string;
-  const corner = props.selectedResizeBorder?.current; 
+  const corner = props.selectedResizeBorder?.current;
 
   if (!selectedElementID || !corner) return;
 
-  const prevX = props.pointerOffset.current.x!;
-  const prevY = props.pointerOffset.current.y!;
+  const prevX = props.pointerOffset.current.x;
+  const prevY = props.pointerOffset.current.y;
 
-  const deltaX = props.event.clientX - prevX;
-  const deltaY = props.event.clientY - prevY;
+  const rawDeltaX = props.event.clientX - prevX!;
+  const rawDeltaY = props.event.clientY - prevY!;
 
+//   if (Math.abs(rawDeltaX) < 1 && Math.abs(rawDeltaY) < 1) return;
 
-  const pixelSize = 16;
+  props.pointerOffset.current = { x: props.event.clientX, y: props.event.clientY };
+
+  const pixelSize = 16; 
+  const sensitivity = .6; 
 
   props.setElements((prev) => {
-    
     const currentEl = prev[selectedElementID];
     if (!currentEl) return prev;
 
@@ -63,30 +68,17 @@ export const HandleCornerResize = (props: Partial<pageEditProps>) => {
     const xDir = corner === "tr" || corner === "br" ? 1 : -1;
     const yDir = corner === "bl" || corner === "br" ? 1 : -1;
 
-    const gridDeltaX = (deltaX * xDir) / pixelSize;
-    const gridDeltaY = (deltaY * yDir) / pixelSize;
+    const gridDeltaX = ((rawDeltaX * xDir) / pixelSize) * sensitivity;
+    const gridDeltaY = ((rawDeltaY * yDir) / pixelSize) * sensitivity;
 
-    let widthDelta = 0;
-    let heightDelta = 0;
 
-    if (Math.abs(gridDeltaX) >= Math.abs(gridDeltaY)) {
-      widthDelta = gridDeltaX;
-      heightDelta = gridDeltaX / aspectRatio;
-    } else {
-      heightDelta = gridDeltaY;
-      widthDelta = gridDeltaY * aspectRatio;
-    }
+    const combinedDelta = (gridDeltaX + gridDeltaY) / 2;
+
+    const widthDelta = combinedDelta;
+    const heightDelta = combinedDelta / aspectRatio;
 
     let newWidth = Math.max(1, currentWidth + widthDelta);
     let newHeight = Math.max(1, currentHeight + heightDelta);
-
-    if (newWidth / newHeight !== aspectRatio) {
-      if (newWidth < newHeight * aspectRatio) {
-        newWidth = newHeight * aspectRatio;
-      } else {
-        newHeight = newWidth / aspectRatio;
-      }
-    }
 
     const actualWidthChange = newWidth - currentWidth;
     const actualHeightChange = newHeight - currentHeight;
@@ -113,28 +105,31 @@ export const HandleCornerResize = (props: Partial<pageEditProps>) => {
 };
 
 export const HandleEdgeResize = (props: Partial<pageEditProps>) => {
-  if (!props.event || !props.pointerOffset?.current || !props.setElements) return;
+  
+    if (!props.event || !props.pointerOffset?.current || !props.setElements) return;
+    
+    const target = props.event.target as HTMLElement;
+    const selectedElementID = target?.parentElement?.dataset.elementId as string;
+    const edge = props.selectedResizeBorder?.current;
+    
+    if (!selectedElementID || !edge) return;
+    console.log(selectedElementID, edge);
+    
+    const prevX = props.pointerOffset.current.x!;
+    const prevY = props.pointerOffset.current.y!;
 
-  const target = props.event.target as HTMLElement;
-  const selectedElementID = target?.parentElement?.dataset.elementId as string;
-  const edge = props.selectedResizeBorder?.current;
-  console.log(edge);
+    const rawDeltaX = props.event.clientX - prevX;
+    const rawDeltaY = props.event.clientY - prevY;
+    
+    props.pointerOffset.current = { x: props.event.clientX, y: props.event.clientY };
+    
+    const pixelSize = 16;
+    
+    props.setElements((prev) => {
+        const currentEl = prev[selectedElementID];
+        
+        if (!currentEl) return prev;
 
-  if (!selectedElementID || !edge) return;
-
-  const prevX = props.pointerOffset.current.x!;
-  const prevY = props.pointerOffset.current.y!;
-
-  const rawDeltaX = props.event.clientX - prevX;
-  const rawDeltaY = props.event.clientY - prevY;
-
-  props.pointerOffset.current = { x: props.event.clientX, y: props.event.clientY };
-
-  const pixelSize = 16;
-
-  props.setElements((prev) => {
-    const currentEl = prev[selectedElementID];
-    if (!currentEl) return prev;
 
     const currentWidth = currentEl.size?.width ?? 1;
     const currentHeight = currentEl.size?.height ?? 1;
@@ -147,6 +142,7 @@ export const HandleEdgeResize = (props: Partial<pageEditProps>) => {
     let newY = currentY;
 
     if (edge === "right") {
+        console.log("Hellow there")
       const deltaWidth = rawDeltaX / pixelSize;
       newWidth = currentWidth + deltaWidth
     } else if (edge === "left") {
@@ -178,10 +174,35 @@ export const HandleEdgeResize = (props: Partial<pageEditProps>) => {
 };
 
 
-const resizeSectionSelected = ({ props, resizePoint }: { props: Partial<pageEditProps>, resizePoint: string }) => {
+const getRezingCursorStyle = (resizePoint:string)=>{
+    switch(resizePoint){
+
+        case "top":
+        case "bottom": 
+            return "cursor-ns-resize"
+
+        case "right":
+        case "left": 
+            return "cursor-ew-resize"
+
+        case "tl":
+        case "br": 
+            return "cursor-nwse-resize"
+
+        case "tr":
+        case "bl": 
+            return "cursor-nesw-resize"
+
+        default: return null;
+    };
+
+}
+
+const resizeSectionSelected = ({ props, resizePoint,  }: { props: Partial<pageEditProps>, resizePoint: string }) => {
     props.event!.stopPropagation();
     props.pointerOffset!.current = { x: props.event?.clientX, y: props.event!.clientY }
     props.selectedResizeBorder!.current = resizePoint;
+    props.cursorStyle!.current = getRezingCursorStyle(resizePoint);
     props.setElementState!(CurrentState.RESIZING);
 };
 
@@ -212,10 +233,11 @@ export const updateElementsPosition = ({ event, selectedTarget, pointerOffset, s
 
 export const handlePointerMove = ({ selectedTarget, selectedMode, event, pointerOffset, setElements, elementState, selectedResizeBorder }: Partial<pageEditProps>) => {
 
+    
     if (!selectedTarget!.current) return;
 
-    const target = event?.target as HTMLElement;
-    if (target.dataset.resizepoint) {
+    
+    if (selectedResizeBorder!.current !== null) {
         resizeCanvasElement({ event, elementState, pointerOffset, setElements, selectedResizeBorder })
     } else {
         if (selectedMode!.current === Modes.GRAB) {
@@ -227,7 +249,20 @@ export const handlePointerMove = ({ selectedTarget, selectedMode, event, pointer
 
 export const createNewBox = ({ event, setElements, activeTool, setActiveTool }: Partial<pageEditProps>) => {
 
-    if (activeTool === Modes.GRAB) return;
+    if (activeTool === Modes.GRAB) {
+        setElements!((prev) => {
+        const nextState: Record<string, ElementAttr> = {};
+
+        Object.keys(prev).forEach((id) => {
+            nextState[id] = {
+                ...prev[id],
+                showToolBox: false,
+            };
+        });
+        return nextState;
+    });
+        return;
+    };
 
     const boxID = crypto.randomUUID();
     const container = event!.currentTarget.getBoundingClientRect();
@@ -253,7 +288,8 @@ export const createNewBox = ({ event, setElements, activeTool, setActiveTool }: 
             gradientEnd: "#8b5cf6",
             gradientAngle: 135,
             size: { width: 11, height: 11 },
-            currentState: CurrentState.DRAG
+            currentState: CurrentState.DRAG,
+            transformOrigin:"center center"
         },
     }));
 
@@ -262,21 +298,22 @@ export const createNewBox = ({ event, setElements, activeTool, setActiveTool }: 
 };
 
 
-export const handlePointerDownContainer = ({ event, setElements, selectedMode, selectedTarget, pointerOffset, activeTool, setActiveTool, setElementState, selectedResizeBorder }: Partial<pageEditProps>) => {
+export const handlePointerDownContainer = ({ event,  setElements, cursorStyle, selectedMode, selectedTarget, pointerOffset, activeTool, setActiveTool, setElementState, selectedResizeBorder }: Partial<pageEditProps>) => {
 
     const target = event!.target as HTMLElement;
     const elementNode = target.closest("[data-element-id]");
     const boxId = elementNode?.getAttribute("data-element-id")!;
     const resizePoint = target.dataset.resizepoint ?? null;
+    target.setPointerCapture(event!.pointerId);
 
     if (resizePoint) {
-        updateSelectedTarget({ target, selectedMode, selectedTarget });
-        resizeSectionSelected({ resizePoint: resizePoint, props: { event, pointerOffset, setElementState, selectedResizeBorder } });
+        updateSelectedTarget({ target, selectedMode, selectedTarget,  });
+        resizeSectionSelected({ resizePoint: resizePoint, props: { event, pointerOffset, setElementState, selectedResizeBorder, cursorStyle } });
         return;
     }
 
     if (target.id === "canvas-container") {
-        createNewBox({ event, setElements, activeTool, setActiveTool });
+        createNewBox({ event, setElements, activeTool, setActiveTool  });
         return;
     }
 
@@ -307,7 +344,7 @@ export function updateSelectedTarget({ target, selectedTarget }:
     {
         target: HTMLElement,
         selectedMode: React.RefObject<Modes> | undefined,
-        selectedTarget: React.RefObject<string | null> | undefined
+        selectedTarget: React.RefObject<string | null> | undefined,
     }) {
 
     const elementNode = target.closest("[data-element-id]");
@@ -318,9 +355,15 @@ export function updateSelectedTarget({ target, selectedTarget }:
 }
 
 
-export const handlePointerUp = ({ selectedMode, selectedTarget, setElementState }: Partial<pageEditProps>) => {
+export const handlePointerUp = ({ selectedMode, selectedTarget, cursorStyle, setElementState, selectedResizeBorder, event }: Partial<pageEditProps>) => {
+
+    if (event?.currentTarget.hasPointerCapture(event?.pointerId)) {
+        event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+    cursorStyle!.current = null;
     selectedMode!.current = Modes.GRAB;
     selectedTarget!.current = null;
+    selectedResizeBorder!.current = null;
     setElementState!(_ => CurrentState.DRAG);
 };
 

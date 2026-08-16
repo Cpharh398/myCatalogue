@@ -1,4 +1,4 @@
-import type { ElementAttr } from "~/util/types";
+import { CurrentState, type ElementAttr } from "~/util/types";
 import { ToolBox } from "./hoveringToolbox";
 import type React from "react";
 
@@ -25,8 +25,8 @@ export function CanvasElement({ id, element, onUpdateStyle }: ElementProps) {
       data-element-id={id}
       style={
           {
-          top: element.position.y,
-          left: element.position.x,
+          top: element.position.y!,
+          left: element.position.x!,
           borderTopLeftRadius: `${element.borderRadius.radiusTL}%`,
           borderTopRightRadius: `${element.borderRadius.radiusTR}%`,
           borderBottomLeftRadius: `${element.borderRadius.radiusBL}%`,
@@ -37,15 +37,14 @@ export function CanvasElement({ id, element, onUpdateStyle }: ElementProps) {
           background: getBackgroundStyle(),
           width: `${element.size?.width}rem` ,
           height: `${element.size?.height}rem`,
-          transformOrigin:"left center"
         }
       }
 
-      className={`absolute transition-transform shadow-md cursor-grab active:cursor-grabbing flex flex-col justify-between`}
+      className = {`absolute transition-transform shadow-md  ${ element.currentState === CurrentState.DRAG ? "cursor-grab active:cursor-grabbing": "" } flex flex-col justify-between`}
     >
 
       {
-        ...ResizingHandles()
+        ResizingHandles({isVisible: element.showToolBox ?? false})
       }
 
       <ToolBox
@@ -57,35 +56,52 @@ export function CanvasElement({ id, element, onUpdateStyle }: ElementProps) {
   );
 }
 
-export function ResizingHandles() {
-  
-  const handleStyle =
-    "bg-white border-2 border-blue-500 rounded-full absolute z-20 shadow transition-transform hover:scale-125";
+export function ResizingHandles({ isVisible }:{ isVisible:boolean | undefined } ) {
 
+  const cornerHandleStyle =
+    "w-3 h-3 bg-white border-[2px] border-blue-600 rounded-full shadow-sm transition-transform hover:scale-125 z-30";
 
-  const resizePoints:{ point:string, position:string  }[] = 
-  [ 
-    { point:"tl", position: "-top-2 -left-2 w-4 h-4 cursor-nwse-resize" }, 
-    { point:"tr", position:"-top-2 -right-2 w-4 h-4  cursor-nesw-resize" }, 
-    {  point:"bl", position:"-bottom-2 -left-2 w-4 h-4 cursor-nesw-resize" }, 
-    { point:"br", position:"-bottom-2 -right-2 w-4 h-4 cursor-nwse-resize" },
+  const edgeHandleStyle =
+    "bg-white border-[1.5px] border-blue-600 rounded-full shadow-sm transition-transform hover:scale-125 z-30";
 
-    { point:"top", position:"-top-2 h-4 w-[50%] translate-x-1/2 cursor-n-resize" },  
-    { point:"bottom", position:"-bottom-2  h-4 w-[50%] translate-x-1/2 cursor-s-resize " },  
-    { point:"left", position:"-left-2  w-4 h-[50%] translate-y-1/2 cursor-ew-resize" },  
-    { point:"right", position:"-right-2  w-4 h-[50%] translate-y-1/2 cursor-ew-resize " },  
-  ]
+  const resizePoints = [
+
+    { point: "tl", style: `${cornerHandleStyle} -top-[1.1rem] -left-[1.1rem] cursor-nwse-resize` },
+    { point: "tr", style: `${cornerHandleStyle} -top-[1.1rem] -right-[1.1rem] cursor-nesw-resize` },
+    { point: "bl", style: `${cornerHandleStyle} -bottom-[1.1rem] -left-[1.1rem] cursor-nesw-resize` },
+    { point: "br", style: `${cornerHandleStyle} -bottom-[1.1rem] -right-[1.1rem] cursor-nwse-resize` },
+
+    {
+      point: "top",
+      style: `${edgeHandleStyle} -top-[1.1rem] left-1/2 -translate-x-1/2 w-5 h-2 cursor-ns-resize`,
+    },
+    {
+      point: "bottom",
+      style: `${edgeHandleStyle} -bottom-[1.1rem] left-1/2 -translate-x-1/2 w-5 h-2 cursor-ns-resize`,
+    },
+    {
+      point: "left",
+      style: `${edgeHandleStyle} -left-[1.1rem] top-1/2 -translate-y-1/2 w-2 h-5 cursor-ew-resize`,
+    },
+    {
+      point: "right",
+      style: `${edgeHandleStyle} -right-[1.1rem] top-1/2 -translate-y-1/2 w-2 h-5 cursor-ew-resize`,
+    },
+  ];
+
+  if(!isVisible)return;
 
   return (
-    [
-      resizePoints.map(point =>  <div
-        key={point.point}
-        data-resizepoint={point.point}
-        className={` ${handleStyle} absolute  ${point.position} scale-125 ring-2 ring-blue-300`}
-      />  )
-    ]
+    <>
+      <div className="absolute -inset-3.5  border-[1.5px] border-blue-600 pointer-events-none z-10" />
 
+      {resizePoints.map((point) => (
+        <div
+          key={point.point}
+          data-resizepoint={point.point}
+          className={`absolute ${point.style}`}
+        />
+      ))}
+    </>
   );
-
-
 }

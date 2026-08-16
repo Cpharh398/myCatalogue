@@ -29,6 +29,7 @@ export type ElementAttr = {
   showToolBox?: boolean;
   size?:Size;
   currentState?:CurrentState
+  transformOrigin:string
 };
 
 
