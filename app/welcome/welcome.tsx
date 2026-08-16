@@ -22,7 +22,7 @@ export function Canvas() {
       id="canvas-container"
       onPointerDown={event => handlePointerDownContainer({ event,cursorStyle, setElements, selectedMode, selectedTarget, pointerOffset, activeTool:activeTool, setActiveTool , setElementState, selectedResizeBorder })}
       onPointerMove={event => handlePointerMove({ event, pointerOffset, selectedMode, selectedTarget, setElements, elementState, selectedResizeBorder })}
-      onPointerUp={event => handlePointerUp({ selectedMode, selectedTarget, setElementState, cursorStyle,selectedResizeBorder  })}
+      onPointerUp={event => handlePointerUp({ selectedMode, selectedTarget, setElementState, cursorStyle,selectedResizeBorder, setElements  })}
       className={`bg-slate-100 w-full h-screen relative overflow-hidden select-none  ${cursorStyle.current !== null ? cursorStyle.current : "" }`}
     >
       <Toolbar
