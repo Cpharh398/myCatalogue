@@ -1,14 +1,14 @@
 import { CurrentState, type ElementAttr, type pageEditProps, type Position } from "~/util/types";
 import { Modes } from "~/util/types";
 
-const resizeCanvasElement = ({ event, elementState, pointerOffset, setElements, selectedResizeBorder }: Partial<pageEditProps>) => {
+const resizeCanvasElement = ({ event, elementState, pointerOffset, setElements, selectedResizeBorder, selectedTarget }: Partial<pageEditProps>) => {
     
     if (elementState === CurrentState.RESIZING) {
         
         const cornerResizePoints = ["br", "tr", "bl", "tl"]
         
         if (cornerResizePoints.includes(selectedResizeBorder!.current!)) {
-            HandleCornerResize({ pointerOffset, event, setElements, selectedResizeBorder });
+            HandleCornerResize({ pointerOffset, event, setElements, selectedResizeBorder , selectedTarget});
         } else {
             HandleEdgeResize({ pointerOffset, event, setElements, selectedResizeBorder })
         }
@@ -17,10 +17,9 @@ const resizeCanvasElement = ({ event, elementState, pointerOffset, setElements, 
 
 
 export const HandleCornerResize = (props: Partial<pageEditProps>) => {
-  if (!props.event || !props.pointerOffset?.current || !props.setElements) return;
+    if (!props.event || !props.pointerOffset?.current || !props.setElements) return;
 
-  const target = props.event.target as HTMLElement;
-  const selectedElementID = target?.parentElement?.dataset.elementId as string;
+  const selectedElementID = props.selectedTarget?.current as string;
   const corner = props.selectedResizeBorder?.current;
 
   if (!selectedElementID || !corner) return;
@@ -52,7 +51,6 @@ export const HandleCornerResize = (props: Partial<pageEditProps>) => {
 
     const gridDeltaX = ((rawDeltaX * xDir) / pixelSize) * sensitivity;
     const gridDeltaY = ((rawDeltaY * yDir) / pixelSize) * sensitivity;
-
 
     const combinedDelta = (gridDeltaX + gridDeltaY) / 2;
 
@@ -184,20 +182,11 @@ const resizeSectionSelected = ({ props, resizePoint, elementId  }: { props: Part
     props.pointerOffset!.current = { x: props.event?.clientX, y: props.event!.clientY }
     props.selectedResizeBorder!.current = resizePoint;
     props.cursorStyle!.current = getRezingCursorStyle(resizePoint);
-    const target = props.event?.target as HTMLElement;
+    // const target = props.event?.target as HTMLElement;
 
     props.setElementState!(CurrentState.RESIZING);
-
+  
     props.setElements!(prev =>{
-
-        const currentX = prev[elementId].position.x ?? 0;
-        const currentWidth = prev[elementId].size?.width ?? 0;
-        
-        const pixelSize = 16;
-        const parentPixelWidth = target.parentElement!.parentElement!.getBoundingClientRect().width;
-        const parentGridWidth = parentPixelWidth / pixelSize;
-
-        const initialRight = parentGridWidth - (currentX + currentWidth);
 
         return {
             ...prev,
@@ -239,9 +228,8 @@ export const handlePointerMove = ({ selectedTarget, selectedMode, event, pointer
 
     if (!selectedTarget!.current) return;
 
-    
     if (selectedResizeBorder!.current !== null) {
-        resizeCanvasElement({ event, elementState, pointerOffset, setElements, selectedResizeBorder })
+        resizeCanvasElement({ event, elementState, pointerOffset, setElements, selectedResizeBorder, selectedTarget })
     } else {
         if (selectedMode!.current === Modes.GRAB) {
             updateElementsPosition({ event, pointerOffset, selectedTarget, setElements, elementState, });
@@ -250,7 +238,7 @@ export const handlePointerMove = ({ selectedTarget, selectedMode, event, pointer
 };
 
 
-export const createNewBox = ({ event, setElements, activeTool, setActiveTool }: Partial<pageEditProps>) => {
+export const createNewBox = ({ event, setElements, activeTool, setActiveTool, selectedTarget, pointerOffset,setElementState,selectedResizeBorder,cursorStyle   }: Partial<pageEditProps>) => {
 
     if (activeTool === Modes.GRAB) {
 
@@ -268,12 +256,14 @@ export const createNewBox = ({ event, setElements, activeTool, setActiveTool }: 
         return;
     };
 
+    
     const boxID = crypto.randomUUID();
     const container = event!.currentTarget.getBoundingClientRect();
-    const x = (event!.clientX - container.left - 80) / 16;
-    const y = (event!.clientY - container.top - 80) /16;
+    const x = (event!.clientX - container.left - 1) / 16;
+    const y = (event!.clientY - container.top - 1) /16;
+    const target = event?.target as HTMLElement;
+    target.setPointerCapture(event!.pointerId);
     
-
     setElements!((prev) => ({
         ...prev,
         ...Object.keys(prev).reduce((acc, key) => {
@@ -285,21 +275,22 @@ export const createNewBox = ({ event, setElements, activeTool, setActiveTool }: 
             position: { x, y },
             borderRadius: { radiusBL: 0, radiusBR: 0, radiusTL: 0, radiusTR: 0 },
             borderColor: "#3b82f6",
-            borderWidth: 2,
+            borderWidth: 0,
             borderStyle: "solid",
             backgroundColor: "#f59e0b",
             useGradient: false,
             gradientStart: "#ec4899",
             gradientEnd: "#8b5cf6",
             gradientAngle: 135,
-            size: { width: 11, height: 11 },
-            currentState: CurrentState.DRAG,
+            size: { width: 1, height: 1 },
+            currentState: CurrentState.RESIZING,
             transformOrigin:"center center",
             verticalAnchor:"top",
             horizontalAnchor:"left"
         },
     }));
-
+    
+    initializeResizing({ target, selectedTarget, props:{ event, pointerOffset, setElementState, selectedResizeBorder, cursorStyle, setElements }, resizePoint:"br", elementId:boxID } );
     setActiveTool!(Modes.GRAB);
 };
 
@@ -317,6 +308,23 @@ export const removeElement = ( props: Partial<pageEditProps> ) =>{
     props.setElements!(prev => updatedElements);
   }
 
+type initResizingProps = {
+    target: HTMLElement, 
+    selectedTarget: React.RefObject<string | null> | undefined,
+    props: Partial<pageEditProps>;
+    resizePoint: string;
+    elementId: string;
+
+}
+
+
+export const initializeResizing = ({ target, selectedTarget, props:{ event, pointerOffset, setElementState, selectedResizeBorder, cursorStyle, setElements } , resizePoint, elementId  }: initResizingProps )=>{
+    
+    updateSelectedTarget({ target, selectedTarget, elementID:elementId  });
+    resizeSectionSelected({ resizePoint: resizePoint, elementId:elementId,  props: { event, pointerOffset, setElementState, selectedResizeBorder, cursorStyle, setElements } });
+
+}
+
 
 export const handlePointerDownContainer = ({ event,  setElements, cursorStyle, selectedMode, selectedTarget, pointerOffset, activeTool, setActiveTool, setElementState, selectedResizeBorder }: Partial<pageEditProps>) => {
 
@@ -327,17 +335,16 @@ export const handlePointerDownContainer = ({ event,  setElements, cursorStyle, s
     target.setPointerCapture(event!.pointerId);
 
     if (resizePoint) {
-        updateSelectedTarget({ target, selectedMode, selectedTarget,  });
-        resizeSectionSelected({ resizePoint: resizePoint, elementId:boxId,  props: { event, pointerOffset, setElementState, selectedResizeBorder, cursorStyle, setElements } });
+        initializeResizing({ target, selectedTarget, props:{ event, pointerOffset, setElementState, selectedResizeBorder, cursorStyle, setElements }, resizePoint, elementId:boxId } );
         return;
     }
 
     if (target.id === "canvas-container") {
-        createNewBox({ event, setElements, activeTool, setActiveTool  });
+        createNewBox({ event, setElements, activeTool, setActiveTool, selectedTarget, pointerOffset, setElementState, selectedResizeBorder, cursorStyle   });
         return;
     }
 
-    updateSelectedTarget({ target, selectedMode, selectedTarget });
+    updateSelectedTarget({ target, selectedTarget });
     selectedMode!.current = Modes.GRAB;
 
     const rect = elementNode?.getBoundingClientRect();
@@ -360,18 +367,23 @@ export const handlePointerDownContainer = ({ event,  setElements, cursorStyle, s
     });
 };
 
-export function updateSelectedTarget({ target, selectedTarget }:
+export function updateSelectedTarget({ target, selectedTarget, elementID }:
     {
         target: HTMLElement,
-        selectedMode: React.RefObject<Modes> | undefined,
+        elementID?: string
         selectedTarget: React.RefObject<string | null> | undefined,
     }) {
 
-    const elementNode = target.closest("[data-element-id]");
-    if (!elementNode) return;
-
-    const boxId = elementNode.getAttribute("data-element-id")!;
-    selectedTarget!.current = boxId;
+        if(elementID){
+            selectedTarget!.current = elementID;
+            return;
+        }
+        
+        const elementNode = target.closest("[data-element-id]");
+        if (!elementNode) return;
+        
+        const boxId = elementNode.getAttribute("data-element-id")!;
+        selectedTarget!.current = boxId;
 }
 
 
@@ -396,9 +408,7 @@ export const handlePointerUp = ({ selectedMode, selectedTarget, cursorStyle, set
             };
         });
         return nextState;
-    });
-    
-    
+    });  
 };
 
 export const updateElementStyle = (id: string, updater: (prev: ElementAttr) => Partial<ElementAttr>, setElements: (value: React.SetStateAction<Record<string, ElementAttr>>) => void) => {
