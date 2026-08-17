@@ -259,8 +259,8 @@ export const createNewBox = ({ event, setElements, activeTool, setActiveTool, se
     
     const boxID = crypto.randomUUID();
     const container = event!.currentTarget.getBoundingClientRect();
-    const x = (event!.clientX - container.left - 1) / 16;
-    const y = (event!.clientY - container.top - 1) /16;
+    const x = (event!.clientX - container.left - 2) / 16;
+    const y = (event!.clientY - container.top - 2) /16;
     const target = event?.target as HTMLElement;
     target.setPointerCapture(event!.pointerId);
     

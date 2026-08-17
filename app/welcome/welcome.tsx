@@ -17,26 +17,13 @@ export function Canvas() {
   const selectedResizeBorder = useRef<string | null>(null);
   const cursorStyle = useRef<"cursor-ns-resize" | "cursor-ew-resize" | "cursor-nwse-resize" | "cursor-nesw-resize" | null>(null);
 
-  // const removeElement = (event:React.MouseEvent) =>{
-
-  //   event.preventDefault();
-  //   const target = event.target as HTMLElement;
-  //   const parentElement = target.closest("[data-element-id]") as HTMLElement;
-  //   const elementID = parentElement?.dataset.elementId;
-
-  //   const updatedElements = Object.fromEntries(
-  //       Object.entries(elements).filter(([key]) => key !== elementID)
-  //     );    
-  //   setElements(prev => updatedElements);
-  // }
-
   return (
     <div
       id="canvas-container"
       onPointerDown={event => handlePointerDownContainer({ event,cursorStyle, setElements, selectedMode, selectedTarget, pointerOffset, activeTool:activeTool, setActiveTool , setElementState, selectedResizeBorder })}
       onPointerMove={event => handlePointerMove({ event, pointerOffset, selectedMode, selectedTarget, setElements, elementState, selectedResizeBorder })}
       onPointerUp={event => handlePointerUp({ selectedMode, selectedTarget, setElementState, cursorStyle,selectedResizeBorder, setElements  })}
-      className={`bg-slate-100 w-full h-screen relative overflow-hidden select-none  ${cursorStyle.current !== null ? cursorStyle.current : "" }`}
+      className={`bg-slate-100 w-full h-screen relative overflow-hidden select-none  ${cursorStyle.current !== null ? cursorStyle.current : activeTool != Modes.GRAB ? "cursor-crosshair" : "" }`}
     >
       <Toolbar
       activeTool={activeTool}
