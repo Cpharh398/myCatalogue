@@ -1,6 +1,5 @@
 import { CurrentState, type ElementAttr } from "~/util/types";
 import { ToolBox } from "./hoveringToolbox";
-import type React from "react";
 
 type ElementProps = {
   id: string;
@@ -11,6 +10,7 @@ type ElementProps = {
 };
 
 export function CanvasElement({ id, element, onUpdateStyle }: ElementProps) {
+
 
   const getBackgroundStyle = () => {
     if (element.useGradient) {
@@ -25,8 +25,13 @@ export function CanvasElement({ id, element, onUpdateStyle }: ElementProps) {
       data-element-id={id}
       style={
           {
-          top: element.position.y!,
-          left: element.position.x!,
+          position: "absolute",
+          top: `${element.position.y! * 16}px`,
+          left: `${element.position.x! * 16}px`,
+          
+          width: `${element.size?.width! * 16}px`,
+          height: `${element.size?.height! * 16}px`,
+
           borderTopLeftRadius: `${element.borderRadius.radiusTL}%`,
           borderTopRightRadius: `${element.borderRadius.radiusTR}%`,
           borderBottomLeftRadius: `${element.borderRadius.radiusBL}%`,
@@ -35,8 +40,8 @@ export function CanvasElement({ id, element, onUpdateStyle }: ElementProps) {
           borderColor: element.borderColor,
           borderStyle: element.borderStyle,
           background: getBackgroundStyle(),
-          width: `${element.size?.width}rem` ,
-          height: `${element.size?.height}rem`,
+          // width: `${element.size?.width}rem` ,
+          // height: `${element.size?.height}rem`,
         }
       }
 

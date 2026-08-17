@@ -1,6 +1,7 @@
 import { CurrentState, type ElementAttr, type Position } from "~/util/types";
 import { Modes } from "~/util/types";
 
+
 type pageEditProps = {
     event: React.PointerEvent,
     selectedTarget: React.RefObject<string | null>,
@@ -17,7 +18,6 @@ type pageEditProps = {
 
 
 const resizeCanvasElement = ({ event, elementState, pointerOffset, setElements, selectedResizeBorder }: Partial<pageEditProps>) => {
-    
     
     if (elementState === CurrentState.RESIZING) {
         
@@ -140,7 +140,7 @@ export const HandleEdgeResize = (props: Partial<pageEditProps>) => {
 
     if (edge === "right") {
       const deltaWidth = rawDeltaX / pixelSize;
-      newWidth = currentWidth + deltaWidth
+      newWidth = Math.max(1, currentWidth + deltaWidth);
     } else if (edge === "left") {
       const deltaWidth = -rawDeltaX / pixelSize;
       newWidth = Math.max(1, currentWidth + deltaWidth);
@@ -195,18 +195,35 @@ const getRezingCursorStyle = (resizePoint:string)=>{
 }
 
 const resizeSectionSelected = ({ props, resizePoint, elementId  }: { props: Partial<pageEditProps>, resizePoint: string, elementId:string }) => {
+  
     props.event!.stopPropagation();
     props.pointerOffset!.current = { x: props.event?.clientX, y: props.event!.clientY }
     props.selectedResizeBorder!.current = resizePoint;
     props.cursorStyle!.current = getRezingCursorStyle(resizePoint);
+    const target = props.event?.target as HTMLElement;
+
     props.setElementState!(CurrentState.RESIZING);
-    props.setElements!((prev) => ({
-        ...prev,
-        [elementId]: {
+
+    props.setElements!(prev =>{
+
+        const currentX = prev[elementId].position.x ?? 0;
+        const currentWidth = prev[elementId].size?.width ?? 0;
+        
+        const pixelSize = 16;
+        const parentPixelWidth = target.parentElement!.parentElement!.getBoundingClientRect().width;
+        const parentGridWidth = parentPixelWidth / pixelSize;
+
+        const initialRight = parentGridWidth - (currentX + currentWidth);
+
+        return {
+            ...prev,
+            [elementId]: {
             ...prev[elementId],
-            currentState: CurrentState.RESIZING
+            currentState: CurrentState.RESIZING,
         },
-    }));
+
+        }
+    });
 };
 
 
@@ -220,8 +237,8 @@ export const updateElementsPosition = ({ event, selectedTarget, pointerOffset, s
     if (!container) return;
     const rect = container.getBoundingClientRect();
 
-    const x = event!.clientX - rect.left - (pointerOffset!.current.x ?? 0);
-    const y = event!.clientY - rect.top - (pointerOffset!.current.y ?? 0);
+    const x = (event!.clientX - rect.left - (pointerOffset!.current.x ?? 0)) / 16;
+    const y = (event!.clientY - rect.top - (pointerOffset!.current.y ?? 0)) / 16;
 
     setElements!((prev) => ({
         ...prev,
@@ -236,7 +253,6 @@ export const updateElementsPosition = ({ event, selectedTarget, pointerOffset, s
 
 export const handlePointerMove = ({ selectedTarget, selectedMode, event, pointerOffset, setElements, elementState, selectedResizeBorder }: Partial<pageEditProps>) => {
 
-    
     if (!selectedTarget!.current) return;
 
     
@@ -253,6 +269,7 @@ export const handlePointerMove = ({ selectedTarget, selectedMode, event, pointer
 export const createNewBox = ({ event, setElements, activeTool, setActiveTool }: Partial<pageEditProps>) => {
 
     if (activeTool === Modes.GRAB) {
+
         setElements!((prev) => {
         const nextState: Record<string, ElementAttr> = {};
 
@@ -269,8 +286,9 @@ export const createNewBox = ({ event, setElements, activeTool, setActiveTool }: 
 
     const boxID = crypto.randomUUID();
     const container = event!.currentTarget.getBoundingClientRect();
-    const x = event!.clientX - container.left - 80;
-    const y = event!.clientY - container.top - 80;
+    const x = (event!.clientX - container.left - 80) / 16;
+    const y = (event!.clientY - container.top - 80) /16;
+    
 
     setElements!((prev) => ({
         ...prev,
@@ -292,7 +310,9 @@ export const createNewBox = ({ event, setElements, activeTool, setActiveTool }: 
             gradientAngle: 135,
             size: { width: 11, height: 11 },
             currentState: CurrentState.DRAG,
-            transformOrigin:"center center"
+            transformOrigin:"center center",
+            verticalAnchor:"top",
+            horizontalAnchor:"left"
         },
     }));
 
@@ -368,13 +388,14 @@ export const handlePointerUp = ({ selectedMode, selectedTarget, cursorStyle, set
     selectedTarget!.current = null;
     selectedResizeBorder!.current = null;
     setElementState!(_ => CurrentState.DRAG);
+
     setElements!((prev) => {
         const nextState: Record<string, ElementAttr> = {};
 
         Object.keys(prev).forEach((id) => {
             nextState[id] = {
                 ...prev[id],
-                currentState:CurrentState.DRAG
+                currentState: CurrentState.DRAG
             };
         });
         return nextState;
