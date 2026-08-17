@@ -1,5 +1,6 @@
 import { CurrentState, type ElementAttr } from "~/util/types";
 import { ToolBox } from "./hoveringToolbox";
+import type React from "react";
 
 type ElementProps = {
   id: string;
@@ -7,12 +8,14 @@ type ElementProps = {
   onUpdateStyle: (
     updater: (prev: ElementAttr) => Partial<ElementAttr>
   ) => void;
+  removeElement: (event: React.PointerEvent) => void 
 };
 
-export function CanvasElement({ id, element, onUpdateStyle }: ElementProps) {
+export function CanvasElement({ id, element, onUpdateStyle, removeElement }: ElementProps) {
 
 
   const getBackgroundStyle = () => {
+
     if (element.useGradient) {
       return `linear-gradient(${element.gradientAngle}deg, ${element.gradientStart}, ${element.gradientEnd})`;
     }
@@ -28,7 +31,7 @@ export function CanvasElement({ id, element, onUpdateStyle }: ElementProps) {
           position: "absolute",
           top: `${element.position.y! * 16}px`,
           left: `${element.position.x! * 16}px`,
-          
+
           width: `${element.size?.width! * 16}px`,
           height: `${element.size?.height! * 16}px`,
 
@@ -40,8 +43,6 @@ export function CanvasElement({ id, element, onUpdateStyle }: ElementProps) {
           borderColor: element.borderColor,
           borderStyle: element.borderStyle,
           background: getBackgroundStyle(),
-          // width: `${element.size?.width}rem` ,
-          // height: `${element.size?.height}rem`,
         }
       }
 
@@ -53,6 +54,7 @@ export function CanvasElement({ id, element, onUpdateStyle }: ElementProps) {
       }
 
       <ToolBox
+        removeElement={removeElement}
         isVisible={element.showToolBox ?? false}
         element={element}
         onUpdateStyle={onUpdateStyle}

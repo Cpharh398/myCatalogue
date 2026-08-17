@@ -1,16 +1,18 @@
 import { useState } from "react";
-import type { BorderRadius, ElementState } from "~/util/types";
+import type { BorderRadius, ElementAttr } from "~/util/types";
+import { X, Trash2 } from "lucide-react"
 
 type ToolBoxProps = {
   isVisible: boolean;
-  element: ElementState;
+  element: ElementAttr;
   onUpdateStyle: (
-    updater: (prev: ElementState) => Partial<ElementState>
+    updater: (prev: ElementAttr) => Partial<ElementAttr>
   ) => void;
+  removeElement: (event: React.PointerEvent) => void
 };
 
 
-export function ToolBox({ isVisible, element, onUpdateStyle }: ToolBoxProps) {
+export function ToolBox({ isVisible, element, onUpdateStyle, removeElement }: ToolBoxProps) {
 
   if (!isVisible) return null;
 
@@ -50,7 +52,6 @@ const toggleCornerSelection = (corner: keyof BorderRadius) => {
       ...selectedCorners,
       [corner]: element.borderRadius[corner],
     }
-
     setSelectedCorners(updated);
     handleRadiusChange(borderRadiusValue);
   }
@@ -223,6 +224,10 @@ const getCornerButtonClass = (
           </div>
         </>
       )}
+
+      <button onPointerDown={removeElement} className="bg-slate-800 rounded-4xl hover:cursor-pointer flex justify-center items-center absolute -top-1 -right-1">
+        <X color="red" size={15} />
+      </button>
     </div>
   );
 }

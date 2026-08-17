@@ -1,21 +1,5 @@
-import { CurrentState, type ElementAttr, type Position } from "~/util/types";
+import { CurrentState, type ElementAttr, type pageEditProps, type Position } from "~/util/types";
 import { Modes } from "~/util/types";
-
-
-type pageEditProps = {
-    event: React.PointerEvent,
-    selectedTarget: React.RefObject<string | null>,
-    pointerOffset: React.RefObject<Position>,
-    setElements: (value: React.SetStateAction<Record<string, ElementAttr>>) => void,
-    selectedMode: React.RefObject<Modes>,
-    activeTool: Modes
-    setActiveTool: React.Dispatch<React.SetStateAction<Modes>>
-    elementState: CurrentState
-    setElementState: React.Dispatch<React.SetStateAction<CurrentState>>
-    selectedResizeBorder: React.RefObject<string | null>
-    cursorStyle: React.RefObject<string | null>
-}
-
 
 const resizeCanvasElement = ({ event, elementState, pointerOffset, setElements, selectedResizeBorder }: Partial<pageEditProps>) => {
     
@@ -317,8 +301,21 @@ export const createNewBox = ({ event, setElements, activeTool, setActiveTool }: 
     }));
 
     setActiveTool!(Modes.GRAB);
-
 };
+
+
+export const removeElement = ( props: Partial<pageEditProps> ) =>{
+
+    props.event?.preventDefault();
+    const target = props.event?.target as HTMLElement;
+    const parentElement = target.closest("[data-element-id]") as HTMLElement;
+    const elementID = parentElement?.dataset.elementId;
+
+    const updatedElements = Object.fromEntries(
+        Object.entries(props.elements!).filter(([key]) => key !== elementID)
+      );    
+    props.setElements!(prev => updatedElements);
+  }
 
 
 export const handlePointerDownContainer = ({ event,  setElements, cursorStyle, selectedMode, selectedTarget, pointerOffset, activeTool, setActiveTool, setElementState, selectedResizeBorder }: Partial<pageEditProps>) => {

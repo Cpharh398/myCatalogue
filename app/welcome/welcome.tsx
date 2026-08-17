@@ -1,7 +1,7 @@
 import { useRef, useState } from "react";
 import { Toolbar } from "~/components/appToolBar";
 import { CanvasElement } from "~/components/CanvasElement";
-import { handlePointerMove, handlePointerDownContainer,handlePointerUp, updateElementStyle } from "~/features/pageEditing"
+import { handlePointerMove, handlePointerDownContainer,handlePointerUp, updateElementStyle, removeElement } from "~/features/pageEditing"
 import { type ElementAttr, type Position, CurrentState, Modes } from "~/util/types"
 
 
@@ -16,6 +16,19 @@ export function Canvas() {
   const pointerOffset = useRef<Position>({ x: 0, y: 0 });
   const selectedResizeBorder = useRef<string | null>(null);
   const cursorStyle = useRef<"cursor-ns-resize" | "cursor-ew-resize" | "cursor-nwse-resize" | "cursor-nesw-resize" | null>(null);
+
+  // const removeElement = (event:React.MouseEvent) =>{
+
+  //   event.preventDefault();
+  //   const target = event.target as HTMLElement;
+  //   const parentElement = target.closest("[data-element-id]") as HTMLElement;
+  //   const elementID = parentElement?.dataset.elementId;
+
+  //   const updatedElements = Object.fromEntries(
+  //       Object.entries(elements).filter(([key]) => key !== elementID)
+  //     );    
+  //   setElements(prev => updatedElements);
+  // }
 
   return (
     <div
@@ -35,6 +48,7 @@ export function Canvas() {
           id={id}
           element={element}
           onUpdateStyle={(updater) => updateElementStyle(id, updater, setElements)}
+          removeElement={ (event) => removeElement({ event, setElements, elements,  })}
         />
       ))}
     </div>

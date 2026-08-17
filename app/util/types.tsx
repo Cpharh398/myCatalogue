@@ -49,4 +49,18 @@ export enum Modes {
 }
 
 
+export type pageEditProps = {
+    event: React.PointerEvent,
+    selectedTarget: React.RefObject<string | null>,
+    pointerOffset: React.RefObject<Position>,
+    setElements: (value: React.SetStateAction<Record<string, ElementAttr>>) => void,
+    selectedMode: React.RefObject<Modes>,
+    activeTool: Modes
+    setActiveTool: React.Dispatch<React.SetStateAction<Modes>>
+    elementState: CurrentState
+    setElementState: React.Dispatch<React.SetStateAction<CurrentState>>
+    selectedResizeBorder: React.RefObject<string | null>
+    cursorStyle: React.RefObject<string | null>
+    elements : Record<string, ElementAttr>
+}
 
