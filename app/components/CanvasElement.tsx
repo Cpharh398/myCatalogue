@@ -1,6 +1,7 @@
 import { CurrentState, type ElementAttr } from "~/util/types";
 import { ToolBox } from "./hoveringToolbox";
 import type React from "react";
+import { removeElement, updateElementStyle } from "~/features/pageEditing";
 
 type ElementProps = {
   id: string;
@@ -8,11 +9,11 @@ type ElementProps = {
   onUpdateStyle: (
     updater: (prev: ElementAttr) => Partial<ElementAttr>
   ) => void;
-  removeElement: (event: React.PointerEvent) => void 
+  removeElement: (event: React.PointerEvent) => void,
+  setElements?: React.Dispatch<React.SetStateAction<Record<string, ElementAttr>>>
 };
 
-export function CanvasElement({ id, element, onUpdateStyle, removeElement }: ElementProps) {
-
+export function CanvasElement({ id, element, onUpdateStyle, removeElement, setElements }: ElementProps) {
 
   const getBackgroundStyle = () => {
 
@@ -22,7 +23,6 @@ export function CanvasElement({ id, element, onUpdateStyle, removeElement }: Ele
     return element.backgroundColor;
   };
 
-
   return (
     <div
       data-element-id={id}
@@ -31,10 +31,8 @@ export function CanvasElement({ id, element, onUpdateStyle, removeElement }: Ele
           position: "absolute",
           top: `${element.position.y! * 16}px`,
           left: `${element.position.x! * 16}px`,
-
           width: `${element.size?.width! * 16}px`,
           height: `${element.size?.height! * 16}px`,
-
           borderTopLeftRadius: `${element.borderRadius.radiusTL}%`,
           borderTopRightRadius: `${element.borderRadius.radiusTR}%`,
           borderBottomLeftRadius: `${element.borderRadius.radiusBL}%`,
@@ -43,15 +41,23 @@ export function CanvasElement({ id, element, onUpdateStyle, removeElement }: Ele
           borderColor: element.borderColor,
           borderStyle: element.borderStyle,
           background: getBackgroundStyle(),
+          zIndex:element.zIndex,
+          pointerEvents:  element.currentState === CurrentState.DRAG ? "none": "auto"
         }
       }
 
-      className = {`absolute transition-transform shadow-md  ${ element.currentState === CurrentState.DRAG ? "cursor-grab active:cursor-grabbing": "" } flex flex-col justify-between`}
+      className = {`absolute touch-none transition-transform shadow-md  ${ element.currentState === CurrentState.IDLE ? "cursor-grab active:cursor-grabbing": "" } flex flex-col justify-between`}
     >
 
       {
         ResizingHandles({isVisible: element.showToolBox ?? false})
       }
+
+      {
+        element.currentState == CurrentState.HOVERED && <div className="bg-slate-300/35 pointer-events-none inset-0 absolute" />
+      }
+
+      <CanvasChildren children={element.canvasChildren} setElements={setElements}/>
 
       <ToolBox
         removeElement={removeElement}
@@ -100,7 +106,7 @@ export function ResizingHandles({ isVisible }:{ isVisible:boolean | undefined } 
 
   return (
     <>
-      <div className="absolute -inset-3.5  border-[1.5px] border-blue-600 pointer-events-none z-10" />
+      <div className={`absolute -inset-3.5  ${ isVisible ? "pointer-events-auto": "pointer-events-none" }  border-[1.5px] border-blue-600 pointer-events-none z-10`} />
 
       {resizePoints.map((point) => (
         <div
@@ -112,3 +118,21 @@ export function ResizingHandles({ isVisible }:{ isVisible:boolean | undefined } 
     </>
   );
 }
+
+
+  
+export function CanvasChildren( { children, setElements }: { children:Record<string, ElementAttr> | undefined, setElements: React.Dispatch<React.SetStateAction<Record<string, ElementAttr>>> | undefined }){
+
+    const elements = children;
+    if(children && setElements){
+        return Object.entries(children).map(([id, element]) => (
+            <CanvasElement
+              key={id}
+              id={id}
+              element={element}
+              onUpdateStyle = { (updater) => updateElementStyle(id, updater, setElements!) }
+              removeElement={ (event) => removeElement({ event, setElements, elements })}
+            />
+        ));
+    };
+} 

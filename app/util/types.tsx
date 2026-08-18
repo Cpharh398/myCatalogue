@@ -29,14 +29,18 @@ export type ElementAttr = {
   showToolBox?: boolean;
   size?:Size;
   currentState?:CurrentState
-  transformOrigin:string
+  transformOrigin:string,
+  zIndex:number,
+  canvasChildren?: Record<string, ElementAttr>
 };
 
 
 export enum CurrentState {
+    IDLE,
     DRAG,
     DROPPED,
-    RESIZING
+    RESIZING,
+    HOVERED,
 }
 
 export enum Modes {
@@ -62,5 +66,9 @@ export type pageEditProps = {
     selectedResizeBorder: React.RefObject<string | null>
     cursorStyle: React.RefObject<string | null>
     elements : Record<string, ElementAttr>
+    zIndex:number,
+    currentHovered: React.RefObject<string | null>,
+    zIndexUpdated: React.RefObject<boolean>,
+    currentDragged: React.RefObject<string | null>
 }
 
