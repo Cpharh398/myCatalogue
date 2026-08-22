@@ -300,17 +300,7 @@ export const createNewBox = ({ event, setElements, activeTool, setActiveTool, se
 
     if (activeTool === Modes.GRAB) {
 
-        setElements!((prev) => {
-            const nextState: Record<string, ElementAttr> = {};
-
-            Object.keys(prev).forEach((id) => {
-                nextState[id] = {
-                    ...prev[id],
-                    showToolBox: false,
-                };
-            });
-            return nextState;
-        });
+        setElements!((prev) => toggleToolBox(prev, null));
         return;
     };
 
@@ -414,19 +404,15 @@ export const handlePointerDownContainer = ({ event, setElements, elements, curso
     selectedMode!.current = Modes.GRAB;
 
     const rect = elementNode?.getBoundingClientRect();
+    
     if (!rect) return;
+    
     pointerOffset!.current = {
         x: event!.clientX - rect.left,
         y: event!.clientY - rect.top,
     };
     
-    setElements!((prev) => {
-
-        return updateNestedElement(prev, boxId, (el) => ({
-      ...el,
-      showToolBox: selectedTarget?.current === boxId 
-    }))
-    });
+    setElements!((prev) => toggleToolBox(prev, selectedTarget!.current!) );
 };
 
 export function updateNestedElement(
@@ -459,6 +445,34 @@ export function updateNestedElement(
 
   return result;
 }
+
+export function toggleToolBox(
+  elements: Record<string, ElementAttr>,
+  targetId: string | null,
+): Record<string, ElementAttr> {
+
+  const result: Record<string, ElementAttr> = {};
+
+  for (const [id, element] of Object.entries(elements)) {
+
+    let updatedChildren: Record<string, ElementAttr> | undefined = undefined;
+    if (element.canvasChildren && Object.keys(element.canvasChildren).length > 0) {
+        updatedChildren = toggleToolBox(element.canvasChildren, targetId);
+      }
+
+    result[id] = {
+    ...element,
+    showToolBox: targetId ? id === targetId: false,
+    ...(updatedChildren ? { canvasChildren: updatedChildren } : {}),
+    };
+  }
+
+  console.log(result);
+
+  return result;
+}
+
+
 
 export function updateSelectedTarget({ target, selectedTarget, elementID }:
     {
