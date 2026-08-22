@@ -1,4 +1,4 @@
-import type { ElementAttr } from "~/util/types";
+import type { ElementAttr, Position } from "~/util/types";
 
 export const updateElementStyle = (id: string, updater: (prev: ElementAttr) => Partial<ElementAttr>, setElements: (value: React.SetStateAction<Record<string, ElementAttr>>) => void) => {
 
@@ -93,10 +93,7 @@ export const getRezingCursorStyle = (resizePoint: string) => {
 
 }
 
-export const findInTree = (
-      tree: Record<string, ElementAttr>,
-      id: string
-    ): ElementAttr | undefined => {
+export const findInTree = (tree: Record<string, ElementAttr>,id: string): ElementAttr | undefined => {
       for (const [key, val] of Object.entries(tree)) {
         if (key === id) return val;
         if (val.canvasChildren) {
@@ -106,3 +103,18 @@ export const findInTree = (
       }
       return undefined;
     };
+
+export const getContainerRelativePosition = (
+  container: HTMLElement,
+  event: React.PointerEvent<Element> | undefined,
+  pointerOffset: React.RefObject<Position> | undefined,
+  )=>{
+
+  const rect = container.getBoundingClientRect();
+  const PIXEL_SIZE = 16;
+
+  let x = (event!.clientX - rect.left - (pointerOffset!.current.x ?? 0)) / PIXEL_SIZE;
+  let y = (event!.clientY - rect.top - (pointerOffset!.current.y ?? 0)) / PIXEL_SIZE;
+
+  return { x, y };
+}

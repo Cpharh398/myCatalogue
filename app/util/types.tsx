@@ -3,6 +3,12 @@ export type Position = {
   y?: number;
 };
 
+export type CurrentStateInTree ={
+  isChildElement:boolean
+  parentElementID:string | null,
+  parentElement?:HTMLElement | null
+}
+
 export type BorderRadius = {
   radiusTL: number;
   radiusTR: number;
@@ -32,8 +38,11 @@ export type ElementAttr = {
   transformOrigin:string,
   zIndex:number,
   canvasChildren?: Record<string, ElementAttr>,
-  parentElementID?:string | null
+  isChildElement?:boolean,
+  currentStateInTree?:CurrentStateInTree
 };
+
+
 
 
 export enum CurrentState {
@@ -75,6 +84,7 @@ export type pageEditProps = {
 }
 
 export type HoveredElementType = {
-  element:string
+  element:HTMLElement,
+  elementID:string
   relativePosition:Position 
 }
