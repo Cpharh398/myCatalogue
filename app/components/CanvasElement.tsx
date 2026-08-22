@@ -2,6 +2,7 @@ import { CurrentState, type ElementAttr } from "~/util/types";
 import { ToolBox } from "./hoveringToolbox";
 import type React from "react";
 import { removeElement, updateElementStyle } from "~/features/pageEditing";
+import { useEffect } from "react";
 
 type ElementProps = {
   id: string;
@@ -42,7 +43,7 @@ export function CanvasElement({ id, element, onUpdateStyle, removeElement, setEl
           borderStyle: element.borderStyle,
           background: getBackgroundStyle(),
           zIndex:element.zIndex,
-          pointerEvents:  element.currentState === CurrentState.DRAG ? "none": "auto"
+          pointerEvents: element.currentState == CurrentState.DRAG ? "none": "auto"
         }
       }
 

@@ -31,7 +31,8 @@ export type ElementAttr = {
   currentState?:CurrentState
   transformOrigin:string,
   zIndex:number,
-  canvasChildren?: Record<string, ElementAttr>
+  canvasChildren?: Record<string, ElementAttr>,
+  parentElementID?:string | null
 };
 
 
@@ -54,6 +55,7 @@ export enum Modes {
 
 
 export type pageEditProps = {
+
     event: React.PointerEvent,
     selectedTarget: React.RefObject<string | null>,
     pointerOffset: React.RefObject<Position>,
@@ -67,8 +69,12 @@ export type pageEditProps = {
     cursorStyle: React.RefObject<string | null>
     elements : Record<string, ElementAttr>
     zIndex:number,
-    currentHovered: React.RefObject<string | null>,
+    currentHovered: React.RefObject<HoveredElementType | null>,
     zIndexUpdated: React.RefObject<boolean>,
     currentDragged: React.RefObject<string | null>
 }
 
+export type HoveredElementType = {
+  element:string
+  relativePosition:Position 
+}
