@@ -1,7 +1,8 @@
 import { useRef, useState } from "react";
 import { Toolbar } from "~/components/appToolBar";
 import { CanvasElement } from "~/components/CanvasElement";
-import { handlePointerMove, handlePointerDownContainer,handlePointerUp, updateElementStyle, removeElement } from "~/features/pageEditing"
+import { handlePointerMove, handlePointerDownContainer,handlePointerUp, removeElement } from "~/features/pageEditing"
+import { updateElementStyle } from "~/features/util";
 import { type ElementAttr, type HoveredElementType, type Position, CurrentState, Modes } from "~/util/types"
 
 

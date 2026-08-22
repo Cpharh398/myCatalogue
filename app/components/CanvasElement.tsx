@@ -1,8 +1,9 @@
 import { CurrentState, type ElementAttr } from "~/util/types";
 import { ToolBox } from "./hoveringToolbox";
 import type React from "react";
-import { removeElement, updateElementStyle } from "~/features/pageEditing";
+import { removeElement } from "~/features/pageEditing";
 import { useEffect } from "react";
+import { updateElementStyle } from "~/features/util";
 
 type ElementProps = {
   id: string;

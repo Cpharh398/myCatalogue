@@ -1,5 +1,6 @@
 import { CurrentState, type ElementAttr, type HoveredElementType, type pageEditProps, type Position } from "~/util/types";
 import { Modes } from "~/util/types";
+import { findInTree, getRezingCursorStyle, toggleToolBox, updateNestedElement } from "./util";
 
 const resizeCanvasElement = ({ event, elementState, pointerOffset, setElements, selectedResizeBorder, selectedTarget }: Partial<pageEditProps>) => {
 
@@ -80,6 +81,7 @@ export const HandleCornerResize = (props: Partial<pageEditProps>) => {
   });
 };
 
+
 export const HandleEdgeResize = (props: Partial<pageEditProps>) => {
   if (!props.event || !props.pointerOffset?.current || !props.setElements) return;
 
@@ -142,29 +144,7 @@ export const HandleEdgeResize = (props: Partial<pageEditProps>) => {
 };
 
 
-const getRezingCursorStyle = (resizePoint: string) => {
-    switch (resizePoint) {
 
-        case "top":
-        case "bottom":
-            return "cursor-ns-resize"
-
-        case "right":
-        case "left":
-            return "cursor-ew-resize"
-
-        case "tl":
-        case "br":
-            return "cursor-nwse-resize"
-
-        case "tr":
-        case "bl":
-            return "cursor-nesw-resize"
-
-        default: return null;
-    };
-
-}
 
 const resizeSectionSelected = ({
   props,
@@ -203,10 +183,12 @@ export const updateElementsPosition = ({
   zIndexUpdated,
   currentDragged,
 }: Partial<pageEditProps>) => {
+
   if (!selectedTarget!.current || elementState === CurrentState.RESIZING) return;
 
   const boxId = selectedTarget!.current;
   const container = document.getElementById("canvas-container");
+
   if (!container) return;
 
   const rect = container.getBoundingClientRect();
@@ -214,7 +196,6 @@ export const updateElementsPosition = ({
   let x = (event!.clientX - rect.left - (pointerOffset!.current.x ?? 0)) / 16;
   let y = (event!.clientY - rect.top - (pointerOffset!.current.y ?? 0)) / 16;
 
-  // Use hit-testing via elementFromPoint
   const underCursor = document.elementFromPoint(event!.clientX, event!.clientY) as HTMLElement;
   const targetContainer = underCursor?.closest("[data-element-id]") as HTMLElement;
   const underCursorElementID = targetContainer?.dataset.elementId;
@@ -222,20 +203,7 @@ export const updateElementsPosition = ({
   let updatedzIndex: number | null = null;
 
   if (underCursorElementID && underCursorElementID !== boxId) {
-    // 💡 Helper to find an element anywhere in the tree
-    const findInTree = (
-      tree: Record<string, ElementAttr>,
-      id: string
-    ): ElementAttr | undefined => {
-      for (const [key, val] of Object.entries(tree)) {
-        if (key === id) return val;
-        if (val.canvasChildren) {
-          const found = findInTree(val.canvasChildren, id);
-          if (found) return found;
-        }
-      }
-      return undefined;
-    };
+    
 
     const targetEl = elements ? findInTree(elements, underCursorElementID) : undefined;
     const zIndex = targetEl?.zIndex ?? 0;
@@ -415,64 +383,6 @@ export const handlePointerDownContainer = ({ event, setElements, elements, curso
     setElements!((prev) => toggleToolBox(prev, selectedTarget!.current!) );
 };
 
-export function updateNestedElement(
-
-  elements: Record<string, ElementAttr>,
-  targetId: string,
-  updater: (element: ElementAttr) => ElementAttr
-): Record<string, ElementAttr> {
-
-  const result: Record<string, ElementAttr> = {};
-
-  for (const [id, element] of Object.entries(elements)) {
-    if (id === targetId) {
-      // Target found! Apply the updater function directly to this element
-      result[id] = updater(element);
-    } else {
-      // Check if the target is inside canvasChildren
-      let updatedChildren: Record<string, ElementAttr> | undefined = undefined;
-
-      if (element.canvasChildren && Object.keys(element.canvasChildren).length > 0) {
-        updatedChildren = updateNestedElement(element.canvasChildren, targetId, updater);
-      }
-
-      result[id] = {
-        ...element,
-        ...(updatedChildren ? { canvasChildren: updatedChildren } : {}),
-      };
-    }
-  }
-
-  return result;
-}
-
-export function toggleToolBox(
-  elements: Record<string, ElementAttr>,
-  targetId: string | null,
-): Record<string, ElementAttr> {
-
-  const result: Record<string, ElementAttr> = {};
-
-  for (const [id, element] of Object.entries(elements)) {
-
-    let updatedChildren: Record<string, ElementAttr> | undefined = undefined;
-    if (element.canvasChildren && Object.keys(element.canvasChildren).length > 0) {
-        updatedChildren = toggleToolBox(element.canvasChildren, targetId);
-      }
-
-    result[id] = {
-    ...element,
-    showToolBox: targetId ? id === targetId: false,
-    ...(updatedChildren ? { canvasChildren: updatedChildren } : {}),
-    };
-  }
-
-  console.log(result);
-
-  return result;
-}
-
-
 
 export function updateSelectedTarget({ target, selectedTarget, elementID }:
     {
@@ -568,14 +478,5 @@ export const handlePointerUp = ({ selectedMode, selectedTarget, cursorStyle, set
 
 };
 
-export const updateElementStyle = (id: string, updater: (prev: ElementAttr) => Partial<ElementAttr>, setElements: (value: React.SetStateAction<Record<string, ElementAttr>>) => void) => {
 
-    setElements!((prev) => ({
-        ...prev,
-        [id]: {
-            ...prev[id],
-            ...updater(prev[id]),
-        },
-    }));
 
-};
