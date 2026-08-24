@@ -173,110 +173,109 @@ const resizeSectionSelected = ({
 
 
 export const updateElementsPosition = ({
-    event,
-    elements,
-    selectedTarget,
-    pointerOffset,
-    setElements,
-    elementState,
-    currentHovered,
-    zIndexUpdated,
-    currentDragged,
+  event,
+  elements,
+  selectedTarget,
+  pointerOffset,
+  setElements,
+  elementState,
+  currentHovered,
+  zIndexUpdated,
+  currentDragged,
 }: Partial<pageEditProps>) => {
-    
-    if (!selectedTarget!.current || elementState === CurrentState.RESIZING) return;
-    
-    const boxId = selectedTarget!.current;
-    const targetEl = elements ? findInTree(elements, boxId) : undefined;
-    const container = document.getElementById("canvas-container");
 
-    const underCursor = document.elementFromPoint(event!.clientX, event!.clientY) as HTMLElement;
+    if (!event || !selectedTarget?.current || elementState === CurrentState.RESIZING) return;
+
+  const boxId = selectedTarget.current;
+  const targetEl = elements ? findInTree(elements, boxId) : undefined;
+  if (!targetEl) return;
+
+  // 1. Check if target is a child element
+  const isChild = targetEl.currentStateInTree?.isChildElement;
+  const parentId = targetEl.currentStateInTree?.parentElementID;
+
+  // 2. Safely locate the reference container (Parent DOM or Canvas Container)
+  let referenceDOM: HTMLElement | null = null;
+
+  if (isChild && parentId) {
+    // Look up the parent container DOM node directly
+    referenceDOM = document.querySelector(`[data-element-id="${parentId}"]`) as HTMLElement;
+  } else {
+    referenceDOM = document.getElementById("canvas-container");
+  }
+
+  // Fallback guard if DOM node isn't ready
+  if (!referenceDOM) return;
+
+  // 3. Compute relative (x, y) coordinates cleanly
+  const { x, y } = getContainerRelativePosition(referenceDOM, event, pointerOffset);
+
+  // 4. Hit-testing for drag/hover targets (Only if NOT dragging a child within its container)
+  if (!isChild) {
+    // Hide pointer-events on the dragged box temporarily so elementFromPoint looks THROUGH it
+    const draggedDOM = document.querySelector(`[data-element-id="${boxId}"]`) as HTMLElement;
+    if (draggedDOM) draggedDOM.style.pointerEvents = "none";
+
+    const underCursor = document.elementFromPoint(event.clientX, event.clientY) as HTMLElement;
+    
+    // Restore pointer events
+    if (draggedDOM) draggedDOM.style.pointerEvents = "auto";
+
     const targetContainer = underCursor?.closest("[data-element-id]") as HTMLElement;
     const underCursorElementID = targetContainer?.dataset.elementId;
+
     let updatedzIndex: number | null = null;
 
-    
-    if(targetEl?.isChildElement){
+    if (underCursorElementID && underCursorElementID !== boxId) {
+      const hoverTargetEl = elements ? findInTree(elements, underCursorElementID) : undefined;
+      const zIndex = hoverTargetEl?.zIndex ?? 0;
 
-        currentDragged!.current = boxId;
-        zIndexUpdated!.current = true;
+      currentDragged!.current = boxId;
+      zIndexUpdated!.current = true;
+      updatedzIndex = zIndex + 1;
 
-        const { x, y} = getContainerRelativePosition(targetEl.currentStateInTree?.parentElement!, event, pointerOffset);
+      const { x: newX, y: newY } = getContainerRelativePosition(underCursor, event, pointerOffset);
 
-        currentHovered!.current = {
-            element: targetEl.currentStateInTree?.parentElement!,
-            elementID: targetEl.currentStateInTree?.parentElementID!,
-            relativePosition: { x, y },
-        };    
-        
-        setElements!((prev) => {
-    
-            let nextState = updateNestedElement(prev, boxId, (draggedEl) => ({
-                ...draggedEl,
-                position: { x, y },
-                currentState: CurrentState.DRAG,
-            }));
-    
-            // if (underCursorElementID && underCursorElementID !== boxId) {
-            //     nextState = updateNestedElement(nextState, underCursorElementID, (hoveredEl) => ({
-            //         ...hoveredEl,
-            //         currentState: CurrentState.HOVERED,
-            //     }));
-            // }
-    
-            return nextState;
-        });
-
-    }else{
-
-    
-        if (!container) return;
-    
-        const { x, y } = getContainerRelativePosition(container, event, pointerOffset);
-    
-        if (underCursorElementID && underCursorElementID !== boxId) {
-    
-            const targetEl = elements ? findInTree(elements, underCursorElementID) : undefined;
-            const zIndex = targetEl?.zIndex ?? 0;
-    
-            currentDragged!.current = boxId;
-            zIndexUpdated!.current = true;
-    
-            const { x: newX, y: newY } = getContainerRelativePosition(underCursor, event, pointerOffset);
-    
-            currentHovered!.current = {
-                element: targetContainer,
-                elementID: underCursorElementID,
-                relativePosition: { x: newX, y: newY },
-            };        
-    
-            updatedzIndex = zIndex + 1;
-    
-        } else {
-            currentHovered!.current = null;
-            currentDragged!.current = null;
-        }
-
-        setElements!((prev) => {
-    
-            let nextState = updateNestedElement(prev, boxId, (draggedEl) => ({
-                ...draggedEl,
-                position: { x, y },
-                zIndex: updatedzIndex ?? draggedEl.zIndex,
-                currentState: CurrentState.DRAG,
-            }));
-    
-            if (underCursorElementID && underCursorElementID !== boxId) {
-                nextState = updateNestedElement(nextState, underCursorElementID, (hoveredEl) => ({
-                    ...hoveredEl,
-                    currentState: CurrentState.HOVERED,
-                }));
-            }
-    
-            return nextState;
-        });
+      currentHovered!.current = {
+        element: targetContainer,
+        elementID: underCursorElementID,
+        relativePosition: { x: newX, y: newY },
+      };
+    } else {
+      currentHovered!.current = null;
+      currentDragged!.current = null;
     }
 
+    // Update root element position & zIndex in state
+    setElements!((prev) => {
+      let nextState = updateNestedElement(prev, boxId, (draggedEl) => ({
+        ...draggedEl,
+        position: { x, y },
+        zIndex: updatedzIndex ?? draggedEl.zIndex,
+        currentState: CurrentState.DRAG,
+      }));
+
+      if (underCursorElementID && underCursorElementID !== boxId) {
+        nextState = updateNestedElement(nextState, underCursorElementID, (hoveredEl) => ({
+          ...hoveredEl,
+          currentState: CurrentState.HOVERED,
+        }));
+      }
+
+      return nextState;
+    });
+  } else {
+    // 5. CHILD ELEMENT UPDATE: Update relative position inside parent container
+    currentDragged!.current = boxId;
+
+    setElements!((prev) =>
+      updateNestedElement(prev, boxId, (draggedEl) => ({
+        ...draggedEl,
+        position: { x, y }, // Relative to parent box bounds
+        currentState: CurrentState.DRAG,
+      }))
+    );
+  }
 };
 
 
