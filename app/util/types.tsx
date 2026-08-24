@@ -81,10 +81,20 @@ export type pageEditProps = {
     currentHovered: React.RefObject<HoveredElementType | null>,
     zIndexUpdated: React.RefObject<boolean>,
     currentDragged: React.RefObject<string | null>
+    lastSelected?: React.RefObject<string | null>
 }
 
 export type HoveredElementType = {
   element:HTMLElement,
   elementID:string
   relativePosition:Position 
+}
+
+
+export type initResizingProps = {
+    target: HTMLElement,
+    selectedTarget: React.RefObject<string | null> | undefined,
+    props: Partial<pageEditProps>;
+    resizePoint: string;
+    elementId: string;
 }

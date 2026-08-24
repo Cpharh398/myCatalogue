@@ -37,6 +37,38 @@ export function toggleToolBox(
 }
 
 
+
+export function removeElementFromTree({
+  elements,
+  targetId
+}:{
+  elements: Record<string, ElementAttr>,
+  targetId: string,
+}
+): Record<string, ElementAttr> {
+
+  const result: Record<string, ElementAttr> = {};
+
+  for (const [id, element] of Object.entries(elements)) {
+    
+    let updatedChildren: Record<string, ElementAttr> | undefined = undefined;
+    
+    if (element.canvasChildren && Object.keys(element.canvasChildren).length > 0) {
+      updatedChildren = removeElementFromTree({ elements:element.canvasChildren, targetId:targetId});
+    }
+  
+    if (id !== targetId) {
+      result[id] = {
+      ...element,
+      ...(updatedChildren ? { canvasChildren: updatedChildren } : {}),
+    };
+    } 
+  }
+  return result;
+}
+
+
+
 export function updateNestedElement(
 
   elements: Record<string, ElementAttr>,
@@ -48,10 +80,8 @@ export function updateNestedElement(
 
   for (const [id, element] of Object.entries(elements)) {
     if (id === targetId) {
-      // Target found! Apply the updater function directly to this element
       result[id] = updater(element);
     } else {
-      // Check if the target is inside canvasChildren
       let updatedChildren: Record<string, ElementAttr> | undefined = undefined;
 
       if (element.canvasChildren && Object.keys(element.canvasChildren).length > 0) {

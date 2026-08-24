@@ -1,6 +1,6 @@
-import { CurrentState, type ElementAttr, type HoveredElementType, type pageEditProps, type Position } from "~/util/types";
+import { CurrentState, type ElementAttr, type HoveredElementType, type initResizingProps, type pageEditProps, type Position } from "~/util/types";
 import { Modes } from "~/util/types";
-import { findInTree, getContainerRelativePosition, getRezingCursorStyle, toggleToolBox, updateNestedElement } from "./util";
+import { findInTree, getContainerRelativePosition, getRezingCursorStyle, removeElementFromTree, toggleToolBox, updateNestedElement } from "./util";
 
 const resizeCanvasElement = ({ event, elementState, pointerOffset, setElements, selectedResizeBorder, selectedTarget }: Partial<pageEditProps>) => {
 
@@ -214,7 +214,6 @@ export const updateElementsPosition = ({
             let nextState = updateNestedElement(prev, boxId, (draggedEl) => ({
                 ...draggedEl,
                 position: { x, y },
-                zIndex: updatedzIndex ?? draggedEl.zIndex,
                 currentState: CurrentState.DRAG,
             }));
     
@@ -285,7 +284,7 @@ export const handlePointerMove = ({ selectedTarget, selectedMode, event, pointer
 
     event?.preventDefault();
     if (!selectedTarget!.current) return;
-
+    
     if (selectedResizeBorder!.current !== null) {
         resizeCanvasElement({ event, elementState, pointerOffset, setElements, selectedResizeBorder, selectedTarget })
     } else {
@@ -296,14 +295,12 @@ export const handlePointerMove = ({ selectedTarget, selectedMode, event, pointer
 };
 
 
-export const createNewBox = ({ event, setElements, activeTool, setActiveTool, selectedTarget, pointerOffset, setElementState, selectedResizeBorder, cursorStyle }: Partial<pageEditProps>) => {
+export const createNewBox = ({ event, setElements, activeTool, setActiveTool, lastSelected, selectedTarget, pointerOffset, setElementState, selectedResizeBorder, cursorStyle }: Partial<pageEditProps>) => {
 
     if (activeTool === Modes.GRAB) {
-
         setElements!((prev) => toggleToolBox(prev, null));
         return;
     };
-
 
     const boxID = crypto.randomUUID();
     const container = event!.currentTarget.getBoundingClientRect();
@@ -345,68 +342,66 @@ export const createNewBox = ({ event, setElements, activeTool, setActiveTool, se
         },
     }));
 
-    initializeResizing({ target, selectedTarget, props: { event, pointerOffset, setElementState, selectedResizeBorder, cursorStyle, setElements }, resizePoint: "br", elementId: boxID });
+    initializeResizing({ target, selectedTarget, props: { event, lastSelected, pointerOffset, setElementState, selectedResizeBorder, cursorStyle, setElements }, resizePoint: "br", elementId: boxID });
     setActiveTool!(Modes.GRAB);
 };
 
 
-export const removeElement = (props: Partial<pageEditProps>) => {
+export const removeElement = ({ props, currentSelectedElement }:{ props: Partial<pageEditProps>, currentSelectedElement?:string })=> {
 
-    props.event?.preventDefault();
-
-    if (props.currentDragged?.current) {
-
-        props.setElements!(Object.fromEntries(
-            Object.entries(props.elements!).filter(([key]) => key !== props.currentDragged?.current)
-        ));
-        return;
+    console.log(props.selectedTarget)
+    if (currentSelectedElement) {
+        props.setElements!( prev => removeElementFromTree({elements:prev, targetId:currentSelectedElement}));
     }
-
-    const target = props.event?.target as HTMLElement;
-    const parentElement = target.closest("[data-element-id]") as HTMLElement;
-    const elementID = parentElement?.dataset.elementId;
-
-    const updatedElements = Object.fromEntries(
-        Object.entries(props.elements!).filter(([key]) => key !== elementID)
-    );
-    props.setElements!(prev => updatedElements);
-}
-
-type initResizingProps = {
-    target: HTMLElement,
-    selectedTarget: React.RefObject<string | null> | undefined,
-    props: Partial<pageEditProps>;
-    resizePoint: string;
-    elementId: string;
 }
 
 
-export const initializeResizing = ({ target, selectedTarget, props: { event, pointerOffset, setElementState, selectedResizeBorder, cursorStyle, setElements }, resizePoint, elementId }: initResizingProps) => {
+
+export const initializeResizing = ({ target, selectedTarget, props: { event, pointerOffset,lastSelected, setElementState, selectedResizeBorder, cursorStyle, setElements }, resizePoint, elementId }: initResizingProps) => {
     target.setPointerCapture(event!.pointerId);
-    updateSelectedTarget({ target, selectedTarget, elementID: elementId });
+    updateSelectedTarget({ target, selectedTarget, elementID: elementId, lastSelected });
     resizeSectionSelected({ resizePoint: resizePoint, elementId: elementId, props: { event, pointerOffset, setElementState, selectedResizeBorder, cursorStyle, setElements } });
 }
 
 
-export const handlePointerDownContainer = ({ event, setElements, elements, cursorStyle, selectedMode, selectedTarget, pointerOffset, activeTool, setActiveTool, setElementState, selectedResizeBorder }: Partial<pageEditProps>) => {
+export const handlePointerDownContainer = ({ event, setElements, elements, lastSelected, cursorStyle, selectedMode, selectedTarget, pointerOffset, activeTool, setActiveTool, setElementState, selectedResizeBorder }: Partial<pageEditProps>) => {
+
+    event?.preventDefault();
+    console.log(lastSelected)
 
     const target = event!.target as HTMLElement;
     const elementNode = target.closest("[data-element-id]");
     const boxId = elementNode?.getAttribute("data-element-id")!;
     const resizePoint = target.dataset.resizepoint ?? null;
-    event?.stopPropagation();
+
+//     const elementsAtPoint = document.elementsFromPoint(event!.clientX, event!.clientY);
+//     const elementIDs: string[] = [];
+//     elementsAtPoint.forEach((el) => {
+//     const id = el.getAttribute("data-element-id");
+//     if (id && !elementIDs.includes(id)) {
+//       elementIDs.push(id);
+//     }
+//   });
+//   const clickedElementID = elementIDs[0] ?? null;
+
+//   console.log("Deepest Clicked Child ID:", clickedElementID);
+//   console.log("All Stacked IDs under cursor:", elementIDs);
+
+
+    // console.log(target);
+    // console.log(elements);
 
     if (resizePoint) {
-        initializeResizing({ target, selectedTarget, props: { event, pointerOffset, setElementState, selectedResizeBorder, cursorStyle, setElements }, resizePoint, elementId: boxId });
+        initializeResizing({ target, selectedTarget, props: { event, pointerOffset, lastSelected, setElementState, selectedResizeBorder, cursorStyle, setElements }, resizePoint, elementId: boxId });
         return;
     }
 
     if (target.id === "canvas-container") {
-        createNewBox({ event, setElements, activeTool, setActiveTool, selectedTarget, pointerOffset, setElementState, selectedResizeBorder, cursorStyle });
+        createNewBox({ event, setElements, activeTool,lastSelected, setActiveTool, selectedTarget, pointerOffset, setElementState, selectedResizeBorder, cursorStyle });
         return;
     }
 
-    updateSelectedTarget({ target, selectedTarget });
+    updateSelectedTarget({ target, selectedTarget, lastSelected });
     selectedMode!.current = Modes.GRAB;
 
      const targetEl = elements ? findInTree(elements, boxId) : undefined;
@@ -427,41 +422,40 @@ export const handlePointerDownContainer = ({ event, setElements, elements, curso
 };
 
 
-export function updateSelectedTarget({ target, selectedTarget, elementID }:
+export function updateSelectedTarget({ target, selectedTarget, elementID, lastSelected }:
     {
         target: HTMLElement,
-        elementID?: string
+        elementID?: string,
+        lastSelected: React.RefObject<string | null> | undefined,
         selectedTarget: React.RefObject<string | null> | undefined,
     }) {
 
     if (elementID) {
         selectedTarget!.current = elementID;
+        lastSelected!.current = elementID;
         return;
     }
-
+    
     const elementNode = target.closest("[data-element-id]");
     if (!elementNode) return;
-
+    
     const boxId = elementNode.getAttribute("data-element-id")!;
     selectedTarget!.current = boxId;
+    lastSelected!.current = boxId;
 }
 
 
 export const handlePointerUp = ({ selectedMode, selectedTarget, cursorStyle, setElementState, setElements, selectedResizeBorder, event, currentHovered, elements, currentDragged }: Partial<pageEditProps>) => {
 
     event?.preventDefault();
-
-    cursorStyle!.current = null;
-    selectedMode!.current = Modes.GRAB;
-    selectedTarget!.current = null;
-    selectedResizeBorder!.current = null;
     let draggedElement: ElementAttr | null = null;
+    const currentSelectedElement = selectedTarget?.current;
 
     setElementState!(_ => CurrentState.DRAG);
 
-    if (currentHovered?.current && currentDragged?.current) {
-        draggedElement = elements![currentDragged?.current];
-        removeElement({ event, setElements, currentDragged, elements });
+    if (currentHovered?.current && currentSelectedElement) {
+        draggedElement = elements![currentSelectedElement];
+        removeElement({ props: {event, setElements, elements}, currentSelectedElement });
     }
 
     const hoveredId = currentHovered?.current;
@@ -500,23 +494,26 @@ export const handlePointerUp = ({ selectedMode, selectedTarget, cursorStyle, set
                 };
             }
 
+            reset({cursorStyle, selectedMode, selectedTarget, selectedResizeBorder})
+            
             return nextState;
         });
-
+        
     } else {
-
+        
         setElements!((prev) => {
             const nextState: Record<string, ElementAttr> = {};
-
+            
             Object.keys(prev).forEach((id) => {
                 nextState[id] = {
                     ...prev[id],
                     currentState: CurrentState.IDLE
                 };
             });
+            
+            reset({cursorStyle, selectedMode, selectedTarget, selectedResizeBorder})
             return nextState;
         });
-        return;
     };
 
     if (currentDragged?.current && currentHovered?.current) {
@@ -524,4 +521,17 @@ export const handlePointerUp = ({ selectedMode, selectedTarget, cursorStyle, set
         currentHovered!.current = null;
     }
 
+
+    // cursorStyle!.current = null;
+    // selectedMode!.current = Modes.GRAB;
+    // selectedTarget!.current = null;
+    // selectedResizeBorder!.current = null;
+
 };
+
+export function reset({cursorStyle,selectedMode, selectedTarget, selectedResizeBorder} :Partial<pageEditProps>){
+    cursorStyle!.current = null;
+    selectedMode!.current = Modes.GRAB;
+    selectedTarget!.current = null;
+    selectedResizeBorder!.current = null;
+}

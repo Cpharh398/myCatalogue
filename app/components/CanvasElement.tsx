@@ -2,20 +2,31 @@ import { CurrentState, type ElementAttr } from "~/util/types";
 import { ToolBox } from "./hoveringToolbox";
 import type React from "react";
 import { removeElement } from "~/features/pageEditing";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { updateElementStyle } from "~/features/util";
+import { X } from "lucide-react";
+import { useCanvasKeybindings } from "~/hooks/useCanvasKeyBindings";
 
 type ElementProps = {
   id: string;
+  selectedElement: string;
   element: ElementAttr;
+  elements:Record<string, ElementAttr>
   onUpdateStyle: (
     updater: (prev: ElementAttr) => Partial<ElementAttr>
   ) => void;
-  removeElement: (event: React.PointerEvent) => void,
-  setElements?: React.Dispatch<React.SetStateAction<Record<string, ElementAttr>>>
+  setElements: React.Dispatch<React.SetStateAction<Record<string, ElementAttr>>>;
+  selectedTarget: React.RefObject<string | null>;
 };
 
-export function CanvasElement({ id, element, onUpdateStyle, removeElement, setElements }: ElementProps) {
+export function CanvasElement({ id, element, onUpdateStyle, setElements, selectedElement, selectedTarget }: ElementProps) {
+  const targetID = useRef(id);
+
+  // useCanvasKeybindings({
+  //  setElements:setElements,
+  //  selectedTarget,
+  // });
+
 
   const getBackgroundStyle = () => {
 
@@ -59,14 +70,17 @@ export function CanvasElement({ id, element, onUpdateStyle, removeElement, setEl
         element.currentState == CurrentState.HOVERED && <div className="bg-slate-300/35 pointer-events-none inset-0 absolute" />
       }
 
-      <CanvasChildren children={element.canvasChildren} setElements={setElements}/>
+      <CanvasChildren  selectedTarget={selectedTarget} selectedElement={selectedElement} children={element.canvasChildren!} setElements={setElements}/>
 
       <ToolBox
-        removeElement={removeElement}
+        id={id}
+        // elements={elements}
+        // removeElement={removeElement}
         isVisible={element.showToolBox ?? false}
         element={element}
         onUpdateStyle={onUpdateStyle}
       />
+    
     </div>
   );
 }
@@ -122,8 +136,16 @@ export function ResizingHandles({ isVisible }:{ isVisible:boolean | undefined } 
 }
 
 
+
+type canvasChildProps = {
+  selectedElement: string;
+  children:Record<string, ElementAttr>
+  setElements: React.Dispatch<React.SetStateAction<Record<string, ElementAttr>>> | undefined,
+  selectedTarget: React.RefObject<string | null>;
+};
+
   
-export function CanvasChildren( { children, setElements }: { children:Record<string, ElementAttr> | undefined, setElements: React.Dispatch<React.SetStateAction<Record<string, ElementAttr>>> | undefined }){
+export function CanvasChildren( { children, setElements, selectedElement, selectedTarget }: canvasChildProps){
 
     const elements = children;
     if(children && setElements){
@@ -131,9 +153,13 @@ export function CanvasChildren( { children, setElements }: { children:Record<str
             <CanvasElement
               key={id}
               id={id}
+              setElements={setElements}
+              elements={elements}
+              selectedTarget={selectedTarget}
+              selectedElement={selectedElement}
               element={element}
               onUpdateStyle = { (updater) => updateElementStyle(id, updater, setElements!) }
-              removeElement={ (event) => removeElement({ event, setElements, elements })}
+              // removeElement={ (event) => removeElement({ props:{ event, setElements, elements}, currentSelectedElement:selectedElement })}
             />
         ));
     };
