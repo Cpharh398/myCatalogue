@@ -22,11 +22,10 @@ type ElementProps = {
 export function CanvasElement({ id, element, onUpdateStyle, setElements, selectedElement, selectedTarget }: ElementProps) {
   const targetID = useRef(id);
 
-  // useCanvasKeybindings({
-  //  setElements:setElements,
-  //  selectedTarget,
-  // });
+  // useEffect(()=>{
+  //   console.log(element.position);
 
+  // }, [element.position])
 
   const getBackgroundStyle = () => {
 

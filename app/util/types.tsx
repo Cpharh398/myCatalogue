@@ -3,10 +3,9 @@ export type Position = {
   y?: number;
 };
 
-export type CurrentStateInTree ={
+export type CurrentStateInTree = {
   isChildElement:boolean
   parentElementID:string | null,
-  parentElement?:HTMLElement | null
 }
 
 export type BorderRadius = {
@@ -85,7 +84,6 @@ export type pageEditProps = {
 }
 
 export type HoveredElementType = {
-  element:HTMLElement,
   elementID:string
   relativePosition:Position 
 }

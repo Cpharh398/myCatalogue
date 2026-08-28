@@ -188,37 +188,31 @@ export const updateElementsPosition = ({
 
   const boxId = selectedTarget.current;
   const targetEl = elements ? findInTree(elements, boxId) : undefined;
+  
   if (!targetEl) return;
 
-  // 1. Check if target is a child element
   const isChild = targetEl.currentStateInTree?.isChildElement;
   const parentId = targetEl.currentStateInTree?.parentElementID;
 
-  // 2. Safely locate the reference container (Parent DOM or Canvas Container)
   let referenceDOM: HTMLElement | null = null;
 
   if (isChild && parentId) {
-    // Look up the parent container DOM node directly
-    referenceDOM = document.querySelector(`[data-element-id="${parentId}"]`) as HTMLElement;
+    referenceDOM = document.querySelector(`[data-element-id="${parentId}"]`) as HTMLElement;;
   } else {
     referenceDOM = document.getElementById("canvas-container");
   }
 
-  // Fallback guard if DOM node isn't ready
   if (!referenceDOM) return;
 
-  // 3. Compute relative (x, y) coordinates cleanly
   const { x, y } = getContainerRelativePosition(referenceDOM, event, pointerOffset);
 
-  // 4. Hit-testing for drag/hover targets (Only if NOT dragging a child within its container)
   if (!isChild) {
-    // Hide pointer-events on the dragged box temporarily so elementFromPoint looks THROUGH it
+
     const draggedDOM = document.querySelector(`[data-element-id="${boxId}"]`) as HTMLElement;
     if (draggedDOM) draggedDOM.style.pointerEvents = "none";
 
     const underCursor = document.elementFromPoint(event.clientX, event.clientY) as HTMLElement;
     
-    // Restore pointer events
     if (draggedDOM) draggedDOM.style.pointerEvents = "auto";
 
     const targetContainer = underCursor?.closest("[data-element-id]") as HTMLElement;
@@ -237,7 +231,6 @@ export const updateElementsPosition = ({
       const { x: newX, y: newY } = getContainerRelativePosition(underCursor, event, pointerOffset);
 
       currentHovered!.current = {
-        element: targetContainer,
         elementID: underCursorElementID,
         relativePosition: { x: newX, y: newY },
       };
@@ -246,7 +239,6 @@ export const updateElementsPosition = ({
       currentDragged!.current = null;
     }
 
-    // Update root element position & zIndex in state
     setElements!((prev) => {
       let nextState = updateNestedElement(prev, boxId, (draggedEl) => ({
         ...draggedEl,
@@ -265,7 +257,6 @@ export const updateElementsPosition = ({
       return nextState;
     });
   } else {
-    // 5. CHILD ELEMENT UPDATE: Update relative position inside parent container
     currentDragged!.current = boxId;
 
     setElements!((prev) =>
@@ -348,12 +339,10 @@ export const createNewBox = ({ event, setElements, activeTool, setActiveTool, la
 
 export const removeElement = ({ props, currentSelectedElement }:{ props: Partial<pageEditProps>, currentSelectedElement?:string })=> {
 
-    console.log(props.selectedTarget)
     if (currentSelectedElement) {
         props.setElements!( prev => removeElementFromTree({elements:prev, targetId:currentSelectedElement}));
     }
 }
-
 
 
 export const initializeResizing = ({ target, selectedTarget, props: { event, pointerOffset,lastSelected, setElementState, selectedResizeBorder, cursorStyle, setElements }, resizePoint, elementId }: initResizingProps) => {
@@ -363,61 +352,67 @@ export const initializeResizing = ({ target, selectedTarget, props: { event, poi
 }
 
 
-export const handlePointerDownContainer = ({ event, setElements, elements, lastSelected, cursorStyle, selectedMode, selectedTarget, pointerOffset, activeTool, setActiveTool, setElementState, selectedResizeBorder }: Partial<pageEditProps>) => {
+export const handlePointerDownContainer = ({
+  event,
+  setElements,
+  elements,
+  lastSelected,
+  cursorStyle,
+  selectedMode,
+  selectedTarget,
+  pointerOffset,
+  activeTool,
+  setActiveTool,
+  setElementState,
+  selectedResizeBorder,
+}: Partial<pageEditProps>) => {
+  event?.preventDefault();
 
-    event?.preventDefault();
-    console.log(lastSelected)
+  const target = event!.target as HTMLElement;
+  const elementNode = target.closest("[data-element-id]") as HTMLElement;
+  const boxId = elementNode?.getAttribute("data-element-id")!;
+  const resizePoint = target.dataset.resizepoint ?? null;
 
-    const target = event!.target as HTMLElement;
-    const elementNode = target.closest("[data-element-id]");
-    const boxId = elementNode?.getAttribute("data-element-id")!;
-    const resizePoint = target.dataset.resizepoint ?? null;
+  if (resizePoint) {
+    initializeResizing({
+      target,
+      selectedTarget,
+      props: { event, pointerOffset, lastSelected, setElementState, selectedResizeBorder, cursorStyle, setElements },
+      resizePoint,
+      elementId: boxId,
+    });
+    return;
+  }
 
-//     const elementsAtPoint = document.elementsFromPoint(event!.clientX, event!.clientY);
-//     const elementIDs: string[] = [];
-//     elementsAtPoint.forEach((el) => {
-//     const id = el.getAttribute("data-element-id");
-//     if (id && !elementIDs.includes(id)) {
-//       elementIDs.push(id);
-//     }
-//   });
-//   const clickedElementID = elementIDs[0] ?? null;
+  if (target.id === "canvas-container") {
+    createNewBox({
+      event,
+      setElements,
+      activeTool,
+      lastSelected,
+      setActiveTool,
+      selectedTarget,
+      pointerOffset,
+      setElementState,
+      selectedResizeBorder,
+      cursorStyle,
+    });
+    return;
+  }
 
-//   console.log("Deepest Clicked Child ID:", clickedElementID);
-//   console.log("All Stacked IDs under cursor:", elementIDs);
+  updateSelectedTarget({ target, selectedTarget, lastSelected });
+  selectedMode!.current = Modes.GRAB;
 
+  if (!elementNode) return;
 
-    // console.log(target);
-    // console.log(elements);
+  const rect = elementNode.getBoundingClientRect();
 
-    if (resizePoint) {
-        initializeResizing({ target, selectedTarget, props: { event, pointerOffset, lastSelected, setElementState, selectedResizeBorder, cursorStyle, setElements }, resizePoint, elementId: boxId });
-        return;
-    }
+  pointerOffset!.current = {
+    x: event!.clientX - rect.left,
+    y: event!.clientY - rect.top,
+  };
 
-    if (target.id === "canvas-container") {
-        createNewBox({ event, setElements, activeTool,lastSelected, setActiveTool, selectedTarget, pointerOffset, setElementState, selectedResizeBorder, cursorStyle });
-        return;
-    }
-
-    updateSelectedTarget({ target, selectedTarget, lastSelected });
-    selectedMode!.current = Modes.GRAB;
-
-     const targetEl = elements ? findInTree(elements, boxId) : undefined;
-     let rect = elementNode?.getBoundingClientRect();
-     
-     if(targetEl?.currentStateInTree?.isChildElement){
-        rect = targetEl.currentStateInTree.parentElement?.getBoundingClientRect();
-     }
-
-    if (!rect) return;
-
-    pointerOffset!.current = {
-        x: event!.clientX - rect.left,
-        y: event!.clientY - rect.top,
-    };
-
-    setElements!((prev) => toggleToolBox(prev, selectedTarget!.current!));
+  setElements!((prev) => toggleToolBox(prev, selectedTarget!.current!));
 };
 
 
@@ -444,28 +439,25 @@ export function updateSelectedTarget({ target, selectedTarget, elementID, lastSe
 }
 
 
-export const handlePointerUp = ({ selectedMode, selectedTarget, cursorStyle, setElementState, setElements, selectedResizeBorder, event, currentHovered, elements, currentDragged }: Partial<pageEditProps>) => {
+export const handlePointerUp = ({ selectedMode, lastSelected, selectedTarget, cursorStyle, setElementState, setElements, selectedResizeBorder, event, currentHovered, elements, currentDragged }: Partial<pageEditProps>) => {
 
     event?.preventDefault();
     let draggedElement: ElementAttr | null = null;
     const currentSelectedElement = selectedTarget?.current;
 
-    setElementState!(_ => CurrentState.DRAG);
-
-    if (currentHovered?.current && currentSelectedElement) {
-        draggedElement = elements![currentSelectedElement];
-        removeElement({ props: {event, setElements, elements}, currentSelectedElement });
-    }
+    setElementState!(prev => CurrentState.DRAG);
 
     const hoveredId = currentHovered?.current;
-    const draggedId = currentDragged?.current;
+    const draggedId = currentSelectedElement;
+    
 
     if (hoveredId && draggedId && elements?.[draggedId]) {
+
         const draggedElement: ElementAttr = elements[draggedId];
 
         setElements!((prev) => {
 
-            const nextState: Record<string, ElementAttr> = { ...prev };
+            let nextState: Record<string, ElementAttr> = { ...prev };
 
             const parent = nextState[hoveredId.elementID];
 
@@ -478,11 +470,11 @@ export const handlePointerUp = ({ selectedMode, selectedTarget, cursorStyle, set
                     currentStateInTree: {
                         isChildElement: true,
                         parentElementID: hoveredId.elementID,
-                        parentElement: hoveredId.element
                     },
                     position: { x: hoveredId.relativePosition.x, y: hoveredId.relativePosition.y }
                 };
-
+                
+                nextState = {...removeElementFromTree({ elements:nextState, targetId:draggedId })}
                 nextState[hoveredId.elementID] = {
                     ...parent,
                     currentState: CurrentState.IDLE,
@@ -492,45 +484,41 @@ export const handlePointerUp = ({ selectedMode, selectedTarget, cursorStyle, set
                     },
                 };
             }
-
-            reset({cursorStyle, selectedMode, selectedTarget, selectedResizeBorder})
             
             return nextState;
         });
+
         
     } else {
-        
-        setElements!((prev) => {
-            const nextState: Record<string, ElementAttr> = {};
-            
-            Object.keys(prev).forEach((id) => {
-                nextState[id] = {
-                    ...prev[id],
-                    currentState: CurrentState.IDLE
-                };
-            });
-            
-            reset({cursorStyle, selectedMode, selectedTarget, selectedResizeBorder})
-            return nextState;
-        });
+
+        setElements!((prev) =>
+        updateNestedElement(prev, lastSelected?.current ?? "", (el) => ({
+            ...el,
+            currentState: CurrentState.IDLE,
+        }))
+    );
     };
 
     if (currentDragged?.current && currentHovered?.current) {
         currentDragged!.current = null;
         currentHovered!.current = null;
     }
-
-
-    // cursorStyle!.current = null;
-    // selectedMode!.current = Modes.GRAB;
-    // selectedTarget!.current = null;
-    // selectedResizeBorder!.current = null;
+    
+    reset({cursorStyle, selectedMode, selectedTarget, selectedResizeBorder})
 
 };
 
+
 export function reset({cursorStyle,selectedMode, selectedTarget, selectedResizeBorder} :Partial<pageEditProps>){
+    
+    const draggedDOM = document.querySelector(`[data-element-id="${selectedTarget?.current}"]`) as HTMLElement;
+   
+    if (draggedDOM) draggedDOM.style.pointerEvents = "auto";
+
     cursorStyle!.current = null;
     selectedMode!.current = Modes.GRAB;
     selectedTarget!.current = null;
     selectedResizeBorder!.current = null;
+    
+
 }

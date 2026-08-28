@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Toolbar } from "~/components/appToolBar";
 import { CanvasElement } from "~/components/CanvasElement";
 import { handlePointerMove, handlePointerDownContainer,handlePointerUp, removeElement } from "~/features/pageEditing"
@@ -23,8 +23,6 @@ export function Canvas() {
   const currentHovered = useRef<HoveredElementType | null>(null);
   const currentDragged = useRef<string | null>(null);
   const zIndexUpdated = useRef<boolean>(false);
-
-  
 
   useCanvasKeybindings({
       selectedTarget:lastSelected,

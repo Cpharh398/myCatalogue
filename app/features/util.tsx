@@ -82,7 +82,7 @@ export function updateNestedElement(
     if (id === targetId) {
       result[id] = updater(element);
     } else {
-      let updatedChildren: Record<string, ElementAttr> | undefined = undefined;
+      let updatedChildren: Record<string, ElementAttr>  = {};
 
       if (element.canvasChildren && Object.keys(element.canvasChildren).length > 0) {
         updatedChildren = updateNestedElement(element.canvasChildren, targetId, updater);
@@ -90,7 +90,7 @@ export function updateNestedElement(
 
       result[id] = {
         ...element,
-        ...(updatedChildren ? { canvasChildren: updatedChildren } : {}),
+        ...{ canvasChildren: updatedChildren },
       };
     }
   }
