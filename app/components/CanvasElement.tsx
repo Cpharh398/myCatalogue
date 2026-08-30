@@ -1,12 +1,13 @@
-import { CurrentState, type ElementAttr } from "~/util/types";
+import { CurrentState, type AlignmentGuide, type ElementAttr } from "~/util/types";
 import { ToolBox } from "./hoveringToolbox";
 import type React from "react";
-import { removeElement } from "~/features/pageEditing";
-import { useEffect, useRef } from "react";
+import { removeElement} from "~/features/pageEditing";
+import { useEffect, useRef, useState } from "react";
 import { updateElementStyle } from "~/features/util";
 import { X } from "lucide-react";
 import { useCanvasKeybindings } from "~/hooks/useCanvasKeyBindings";
 import { DropVisualizer } from "./dropVisualizer";
+import { AlignmentGuidesOverlay } from "./guidLines";
 
 type ElementProps = {
   id: string;
@@ -18,9 +19,11 @@ type ElementProps = {
   ) => void;
   setElements: React.Dispatch<React.SetStateAction<Record<string, ElementAttr>>>;
   selectedTarget: React.RefObject<string | null>;
+  guide:AlignmentGuide[]
+   setGuide: React.Dispatch<React.SetStateAction<AlignmentGuide[]>>
 };
 
-export function CanvasElement({ id, element, onUpdateStyle, setElements, selectedElement, selectedTarget }: ElementProps) {
+export function CanvasElement({ id, element, guide, setGuide, onUpdateStyle, setElements, selectedElement, selectedTarget }: ElementProps) {
   const targetID = useRef(id);
 
   const getBackgroundStyle = () => {
@@ -30,7 +33,7 @@ export function CanvasElement({ id, element, onUpdateStyle, setElements, selecte
     }
     return element.backgroundColor;
   };
-
+  
   return (
     <div
       data-element-id={id}
@@ -57,7 +60,7 @@ export function CanvasElement({ id, element, onUpdateStyle, setElements, selecte
     >
 
       {
-        ResizingHandles({isVisible: element.showToolBox ?? false})
+        <ResizingHandles isVisible={element.showToolBox} />
       }
 
       {
@@ -69,14 +72,12 @@ export function CanvasElement({ id, element, onUpdateStyle, setElements, selecte
          className="absolute inset-0 pointer-events-none rounded border-2 border-dashed border-blue-500 bg-blue-500/10 z-50 flex items-center justify-center transition-all duration-150" />
       }
 
-      <CanvasChildren  selectedTarget={selectedTarget} selectedElement={selectedElement} children={element.canvasChildren!} setElements={setElements}/>
+      <CanvasChildren  guide={guide} setGuide={setGuide} selectedTarget={selectedTarget} selectedElement={selectedElement} children={element.canvasChildren!} setElements={setElements}/>
       <HoveredElementHighlight currentState={element.currentState} />
       <DropVisualizer  canvasChildren={element.canvasChildren}/>
 
       <ToolBox
         id={id}
-        // elements={elements}
-        // removeElement={removeElement}
         isVisible={element.showToolBox ?? false}
         element={element}
         onUpdateStyle={onUpdateStyle}
@@ -138,15 +139,20 @@ export function ResizingHandles({ isVisible }:{ isVisible:boolean | undefined } 
 
 
 
+
+
+
 type canvasChildProps = {
   selectedElement: string;
   children:Record<string, ElementAttr>
   setElements: React.Dispatch<React.SetStateAction<Record<string, ElementAttr>>> | undefined,
   selectedTarget: React.RefObject<string | null>;
+    guide:AlignmentGuide[]
+   setGuide: React.Dispatch<React.SetStateAction<AlignmentGuide[]>>
 };
 
   
-export function CanvasChildren( { children, setElements, selectedElement, selectedTarget }: canvasChildProps){
+export function CanvasChildren( { children, setElements, selectedElement, selectedTarget, guide, setGuide }: canvasChildProps){
 
     const elements = children;
     if(children && setElements){
@@ -154,6 +160,8 @@ export function CanvasChildren( { children, setElements, selectedElement, select
             <CanvasElement
               key={id}
               id={id}
+              guide={guide}
+              setGuide={setGuide}
               setElements={setElements}
               elements={elements}
               selectedTarget={selectedTarget}

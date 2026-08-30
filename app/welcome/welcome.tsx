@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import { Toolbar } from "~/components/appToolBar";
 import { CanvasElement } from "~/components/CanvasElement";
-import { handlePointerMove, handlePointerDownContainer,handlePointerUp, removeElement } from "~/features/pageEditing"
+import { AlignmentGuidesOverlay } from "~/components/guidLines";
+import { handlePointerMove, handlePointerDownContainer,handlePointerUp, removeElement,  } from "~/features/pageEditing"
 import { updateElementStyle } from "~/features/util";
 import { useCanvasKeybindings } from "~/hooks/useCanvasKeyBindings";
-import { type ElementAttr, type HoveredElementType, type Position, CurrentState, Modes } from "~/util/types"
+import { type AlignmentGuide, type ElementAttr, type HoveredElementType, type Position, CurrentState, Modes } from "~/util/types"
 
 
 
@@ -12,7 +13,7 @@ export function Canvas() {
   
   const [elements, setElements] = useState<Record<string, ElementAttr>>({});
   const [elementState, setElementState] = useState<CurrentState>(CurrentState.DRAG);
-
+  const [guide, setGuide] = useState<AlignmentGuide[]>([]);
   const [activeTool, setActiveTool] = useState<Modes>(Modes.GRAB);
   const selectedMode = useRef<Modes>(Modes.GRAB);
   const selectedTarget = useRef<string | null>(null);
@@ -29,18 +30,19 @@ export function Canvas() {
       setElements,
     });
 
-
   return (
     <div
-    
+
       id="canvas-container"
       onPointerDown={event => handlePointerDownContainer({ event, lastSelected, elements, cursorStyle, setElements, selectedMode, selectedTarget, pointerOffset, activeTool:activeTool, setActiveTool, setElementState, selectedResizeBorder })}
-      onPointerMove={event => handlePointerMove({ event, pointerOffset, selectedMode, elements, selectedTarget, setElements, elementState, selectedResizeBorder, currentHovered, zIndexUpdated, currentDragged })}
-      onPointerUp={event => handlePointerUp({ selectedMode, selectedTarget, setElementState, cursorStyle,selectedResizeBorder, setElements, currentHovered, elements, currentDragged   })}
+      onPointerMove={event => handlePointerMove({ event , pointerOffset, selectedMode, elements, selectedTarget, setElements, elementState, selectedResizeBorder, currentHovered, setGuide, zIndexUpdated, currentDragged })}
+      onPointerUp={event => handlePointerUp({ setGuide, selectedMode, selectedTarget, setElementState, cursorStyle,selectedResizeBorder, setElements, currentHovered, elements, currentDragged   })}
       className={`bg-slate-100 w-full h-screen relative overflow-hidden select-none  ${cursorStyle.current !== null ? cursorStyle.current : activeTool != Modes.GRAB ? "cursor-crosshair" : "" }`}
     >
 
       <div className="bg-slate-300/35 pointer-events-none inset-0 absolute" />
+      <AlignmentGuidesOverlay guides={guide} />
+      
 
       <Toolbar
       activeTool={activeTool}
@@ -50,6 +52,8 @@ export function Canvas() {
         <CanvasElement
          selectedTarget={selectedTarget}
           key={id}
+          guide={guide}
+          setGuide={setGuide}
           id={id}
           elements={elements}
           selectedElement={selectedTarget.current!}

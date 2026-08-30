@@ -1,3 +1,4 @@
+
 export type Position = {
   x?: number;
   y?: number;
@@ -81,6 +82,7 @@ export type pageEditProps = {
     zIndexUpdated: React.RefObject<boolean>,
     currentDragged: React.RefObject<string | null>
     lastSelected?: React.RefObject<string | null>
+    setGuide: React.Dispatch<React.SetStateAction<AlignmentGuide[]>>
 }
 
 export type HoveredElementType = {
@@ -96,3 +98,11 @@ export type initResizingProps = {
     resizePoint: string;
     elementId: string;
 }
+
+export interface AlignmentGuide {
+  type: "x" | "y";     
+  position: number;   // Coordinate along the perpendicular axis (in rem)
+  start: number;      // Where the line segment starts (in rem)
+  length: number;     // How long the line segment extends (in rem)
+}
+
