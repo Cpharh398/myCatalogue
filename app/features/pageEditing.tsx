@@ -260,6 +260,7 @@ export const updateElementsPosition = ({
         }
 
         if (underCursorElementID && underCursorElementID !== boxId) {
+
             const prevHoveredEl = findInTreeByState(nextState, "currentState", CurrentState.HOVERED);
             if (prevHoveredEl) {
                 nextState = updateNestedElement(nextState, prevHoveredEl.id, (hoveredEl) => ({
@@ -270,7 +271,7 @@ export const updateElementsPosition = ({
 
             nextState = updateNestedElement(nextState, underCursorElementID, (hoveredEl) => ({
                 ...hoveredEl,
-                currentState: CurrentState.HOVERED,
+                currentState: underCursorElementID !== targetEl.currentStateInTree?.parentElementID  ? CurrentState.HOVERED : hoveredEl.currentState, // only update to hovered if parent element is not the current parent element of the child 
             }));
 
         } else {

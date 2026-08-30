@@ -6,6 +6,7 @@ import { useEffect, useRef } from "react";
 import { updateElementStyle } from "~/features/util";
 import { X } from "lucide-react";
 import { useCanvasKeybindings } from "~/hooks/useCanvasKeyBindings";
+import { DropVisualizer } from "./dropVisualizer";
 
 type ElementProps = {
   id: string;
@@ -21,11 +22,6 @@ type ElementProps = {
 
 export function CanvasElement({ id, element, onUpdateStyle, setElements, selectedElement, selectedTarget }: ElementProps) {
   const targetID = useRef(id);
-
-  // useEffect(()=>{
-  //   console.log(element.position);
-
-  // }, [element.position])
 
   const getBackgroundStyle = () => {
 
@@ -65,10 +61,17 @@ export function CanvasElement({ id, element, onUpdateStyle, setElements, selecte
       }
 
       {
-        element.currentState == CurrentState.HOVERED && <HoveredElementHighlight/>
+        element.currentState == CurrentState.HOVERED && 
+        <div
+        style={{
+        boxShadow: "0 0 12px rgba(59, 130, 246, 0.4)",
+      }} 
+         className="absolute inset-0 pointer-events-none rounded border-2 border-dashed border-blue-500 bg-blue-500/10 z-50 flex items-center justify-center transition-all duration-150" />
       }
 
       <CanvasChildren  selectedTarget={selectedTarget} selectedElement={selectedElement} children={element.canvasChildren!} setElements={setElements}/>
+      <HoveredElementHighlight currentState={element.currentState} />
+      <DropVisualizer  canvasChildren={element.canvasChildren}/>
 
       <ToolBox
         id={id}
@@ -157,7 +160,6 @@ export function CanvasChildren( { children, setElements, selectedElement, select
               selectedElement={selectedElement}
               element={element}
               onUpdateStyle = { (updater) => updateElementStyle(id, updater, setElements!) }
-              // removeElement={ (event) => removeElement({ props:{ event, setElements, elements}, currentSelectedElement:selectedElement })}
             />
         ));
     };
@@ -172,13 +174,14 @@ interface HoveredOverlayProps {
 
 export const HoveredElementHighlight: React.FC<HoveredOverlayProps> = ({
   currentState,
-  label = "Drop inside",
+  label = "Drop here",
 }) => {
+
   if (currentState !== CurrentState.HOVERED) return null;
 
   return (
     <div
-      className="absolute inset-0 pointer-events-none rounded border-2 border-dashed border-blue-500 bg-blue-500/10 z-50 flex items-center justify-center transition-all duration-150"
+      className = "absolute inset-0 pointer-events-none rounded border-2 border-dashed border-blue-500 bg-blue-500/10 z-50 flex items-center justify-center transition-all duration-150"
       style={{
         boxShadow: "0 0 12px rgba(59, 130, 246, 0.4)",
       }}
@@ -189,3 +192,5 @@ export const HoveredElementHighlight: React.FC<HoveredOverlayProps> = ({
     </div>
   );
 };
+
+
