@@ -123,7 +123,8 @@ export const getRezingCursorStyle = (resizePoint: string) => {
 
 }
 
-export const findInTree = (tree: Record<string, ElementAttr>,id: string): ElementAttr | undefined => {
+export const findInTree = (tree: Record<string, ElementAttr> | undefined,id: string): ElementAttr | undefined => {
+  if(!tree) return;
       for (const [key, val] of Object.entries(tree)) {
         if (key === id) return val;
         if (val.canvasChildren) {

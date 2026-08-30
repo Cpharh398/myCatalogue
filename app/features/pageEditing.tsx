@@ -172,113 +172,110 @@ const resizeSectionSelected = ({
 };
 
 
+export function getElementParentDOMNode(isChild: boolean | undefined, parentId:string | undefined | null) {
+    if (isChild && parentId) {
+        return document.querySelector(`[data-element-id="${parentId}"]`) as HTMLElement;
+    } else {
+        return document.getElementById("canvas-container");
+    }
+
+}
 
 export const updateElementsPosition = ({
-  event,
-  elements,
-  selectedTarget,
-  pointerOffset,
-  setElements,
-  elementState,
-  currentHovered,
-  zIndexUpdated,
-  currentDragged,
+    event,
+    elements,
+    selectedTarget,
+    pointerOffset,
+    setElements,
+    elementState,
+    currentHovered,
+    zIndexUpdated,
+    currentDragged,
 }: Partial<pageEditProps>) => {
 
     if (!event || !selectedTarget?.current || elementState === CurrentState.RESIZING) return;
 
-  const boxId = selectedTarget.current;
-  const targetEl = elements ? findInTree(elements, boxId) : undefined;
-  
-  if (!targetEl) return;
+    const boxId = selectedTarget.current;
+    const targetEl = elements ? findInTree(elements, boxId) : undefined;
 
-  const isChild = targetEl.currentStateInTree?.isChildElement;
-  const parentId = targetEl.currentStateInTree?.parentElementID;
+    if (!targetEl) return;
 
-  let referenceDOM: HTMLElement | null = null;
+    const isChild = targetEl.currentStateInTree?.isChildElement;
+    const parentId = targetEl.currentStateInTree?.parentElementID;
 
-  if (isChild && parentId) {
-    referenceDOM = document.querySelector(`[data-element-id="${parentId}"]`) as HTMLElement;;
-  } else {
-    referenceDOM = document.getElementById("canvas-container");
-  }
 
-  if (!referenceDOM) return;
+    let referenceDOM: HTMLElement | null = getElementParentDOMNode(isChild, parentId);
 
-  const { x, y } = getContainerRelativePosition(referenceDOM, event, pointerOffset);
+    if (!referenceDOM) return;
 
-  if (!isChild) {
+    const { x, y } = getContainerRelativePosition(referenceDOM, event, pointerOffset);
 
     const draggedDOM = document.querySelector(`[data-element-id="${boxId}"]`) as HTMLElement;
-    if (draggedDOM) draggedDOM.style.pointerEvents = "none";
 
-    const underCursor = document.elementFromPoint(event.clientX, event.clientY) as HTMLElement;
-    
-    if (draggedDOM) draggedDOM.style.pointerEvents = "auto";
+        if (draggedDOM) draggedDOM.style.pointerEvents = "none";
 
-    const targetContainer = underCursor?.closest("[data-element-id]") as HTMLElement;
-    const underCursorElementID = targetContainer?.dataset.elementId;
+        const underCursor = document.elementFromPoint(event.clientX, event.clientY) as HTMLElement;
+        // console.log(underCursor);
 
-    let updatedzIndex: number | null = null;
+        if (draggedDOM) draggedDOM.style.pointerEvents = "auto";
 
-    if (underCursorElementID && underCursorElementID !== boxId) {
+        const targetContainer = underCursor?.closest("[data-element-id]") as HTMLElement;
+        const underCursorElementID = targetContainer?.dataset.elementId;
+        // console.log(underCursorElementID)
 
-      const hoverTargetEl = elements ? findInTree(elements, underCursorElementID) : undefined;
-      const zIndex = hoverTargetEl?.zIndex ?? 0;
+        let updatedzIndex: number | null = null;
 
-      currentDragged!.current = boxId;
-      zIndexUpdated!.current = true;
-      updatedzIndex = zIndex + 1;
+        if (underCursorElementID && underCursorElementID !== boxId) {
 
-      const { x: newX, y: newY } = getContainerRelativePosition(underCursor, event, pointerOffset);
+            const hoverTargetEl = elements ? findInTree(elements, underCursorElementID) : undefined;
+            const zIndex = hoverTargetEl?.zIndex ?? 0;
+            
+            currentDragged!.current = boxId;
+            zIndexUpdated!.current = true;
+            updatedzIndex = zIndex + 1;
 
-      currentHovered!.current = {
-        elementID: underCursorElementID,
-        relativePosition: { x: newX, y: newY },
-      };
-    } else {
-      currentHovered!.current = null;
-      currentDragged!.current = null;
-    }
+            const { x: newX, y: newY } = getContainerRelativePosition(underCursor, event, pointerOffset);
 
-    setElements!((prev) => {
+            currentHovered!.current = {
+                elementID: underCursorElementID,
+                relativePosition: { x: newX, y: newY },
+            };
 
-      let nextState = updateNestedElement(prev, boxId, (draggedEl) => ({
-        ...draggedEl,
-        position: { x, y },
-        zIndex: updatedzIndex ?? draggedEl.zIndex,
-        currentState: CurrentState.DRAG,
-      }));
+        } else {
+            currentHovered!.current = null;
+            currentDragged!.current = null;
+        }
 
-      if (underCursorElementID && underCursorElementID !== boxId) {
-        nextState = updateNestedElement(nextState, underCursorElementID, (hoveredEl) => ({
-          ...hoveredEl,
-          currentState: CurrentState.HOVERED,
-        }));
-    }else{
-          const prevHoveredEl = findInTreeByState(nextState, "currentState", CurrentState.HOVERED);
-          if(prevHoveredEl){
 
-              nextState = updateNestedElement(nextState, prevHoveredEl.id, (hoveredEl) => ({
-             ...hoveredEl,
-             currentState: CurrentState.IDLE,
-           }));
-          }
-      }
+        setElements!((prev) => {
 
-      return nextState;
-    });
-  } else {
-    currentDragged!.current = boxId;
+            let nextState = updateNestedElement(prev, boxId, (draggedEl) => ({
+                ...draggedEl,
+                position: { x, y },
+                zIndex: updatedzIndex ?? draggedEl.zIndex,
+                currentState: CurrentState.DRAG,
+            }));
 
-    setElements!((prev) =>
-      updateNestedElement(prev, boxId, (draggedEl) => ({
-        ...draggedEl,
-        position: { x, y }, // Relative to parent box bounds
-        currentState: CurrentState.DRAG,
-      }))
-    );
-  }
+            if (underCursorElementID && underCursorElementID !== boxId) {
+                nextState = updateNestedElement(nextState, underCursorElementID, (hoveredEl) => ({
+                    ...hoveredEl,
+                    currentState: CurrentState.HOVERED,
+                }));
+                
+            } else {
+                const prevHoveredEl = findInTreeByState(nextState, "currentState", CurrentState.HOVERED);
+                if (prevHoveredEl) {
+
+                    nextState = updateNestedElement(nextState, prevHoveredEl.id, (hoveredEl) => ({
+                        ...hoveredEl,
+                        currentState: CurrentState.IDLE,
+                    }));
+                }
+            }
+
+            return nextState;
+        });
+
 };
 
 
@@ -286,7 +283,7 @@ export const handlePointerMove = ({ selectedTarget, selectedMode, event, pointer
 
     event?.preventDefault();
     if (!selectedTarget!.current) return;
-    
+
     if (selectedResizeBorder!.current !== null) {
         resizeCanvasElement({ event, elementState, pointerOffset, setElements, selectedResizeBorder, selectedTarget })
     } else {
@@ -344,22 +341,22 @@ export const createNewBox = ({ event, setElements, activeTool, setActiveTool, la
         },
     }));
 
-    
+
 
     initializeResizing({ target, selectedTarget, props: { event, lastSelected, pointerOffset, setElementState, selectedResizeBorder, cursorStyle, setElements }, resizePoint: "br", elementId: boxID });
     setActiveTool!(Modes.GRAB);
 };
 
 
-export const removeElement = ({ props, currentSelectedElement }:{ props: Partial<pageEditProps>, currentSelectedElement?:string })=> {
+export const removeElement = ({ props, currentSelectedElement }: { props: Partial<pageEditProps>, currentSelectedElement?: string }) => {
 
     if (currentSelectedElement) {
-        props.setElements!( prev => removeElementFromTree({elements:prev, targetId:currentSelectedElement}));
+        props.setElements!(prev => removeElementFromTree({ elements: prev, targetId: currentSelectedElement }));
     }
 }
 
 
-export const initializeResizing = ({ target, selectedTarget, props: { event, pointerOffset,lastSelected, setElementState, selectedResizeBorder, cursorStyle, setElements }, resizePoint, elementId }: initResizingProps) => {
+export const initializeResizing = ({ target, selectedTarget, props: { event, pointerOffset, lastSelected, setElementState, selectedResizeBorder, cursorStyle, setElements }, resizePoint, elementId }: initResizingProps) => {
     target.setPointerCapture(event!.pointerId);
     updateSelectedTarget({ target, selectedTarget, elementID: elementId, lastSelected });
     resizeSectionSelected({ resizePoint: resizePoint, elementId: elementId, props: { event, pointerOffset, setElementState, selectedResizeBorder, cursorStyle, setElements } });
@@ -367,67 +364,66 @@ export const initializeResizing = ({ target, selectedTarget, props: { event, poi
 
 
 export const handlePointerDownContainer = ({
-  event,
-  setElements,
-  elements,
-  lastSelected,
-  cursorStyle,
-  selectedMode,
-  selectedTarget,
-  pointerOffset,
-  activeTool,
-  setActiveTool,
-  setElementState,
-  selectedResizeBorder,
+    event,
+    setElements,
+    elements,
+    lastSelected,
+    cursorStyle,
+    selectedMode,
+    selectedTarget,
+    pointerOffset,
+    activeTool,
+    setActiveTool,
+    setElementState,
+    selectedResizeBorder,
 }: Partial<pageEditProps>) => {
-  event?.preventDefault();
+    event?.preventDefault();
 
-  const target = event!.target as HTMLElement;
-  const elementNode = target.closest("[data-element-id]") as HTMLElement;
-  const boxId = elementNode?.getAttribute("data-element-id")!;
-  const resizePoint = target.dataset.resizepoint ?? null;
-  console.log(elements);
+    const target = event!.target as HTMLElement;
+    const elementNode = target.closest("[data-element-id]") as HTMLElement;
+    const boxId = elementNode?.getAttribute("data-element-id")!;
+    const resizePoint = target.dataset.resizepoint ?? null;
 
-  if (resizePoint) {
-    initializeResizing({
-      target,
-      selectedTarget,
-      props: { event, pointerOffset, lastSelected, setElementState, selectedResizeBorder, cursorStyle, setElements },
-      resizePoint,
-      elementId: boxId,
-    });
-    return;
-  }
+    if (resizePoint) {
+        initializeResizing({
+            target,
+            selectedTarget,
+            props: { event, pointerOffset, lastSelected, setElementState, selectedResizeBorder, cursorStyle, setElements },
+            resizePoint,
+            elementId: boxId,
+        });
+        return;
+    }
 
-  if (target.id === "canvas-container") {
-    createNewBox({
-      event,
-      setElements,
-      activeTool,
-      lastSelected,
-      setActiveTool,
-      selectedTarget,
-      pointerOffset,
-      setElementState,
-      selectedResizeBorder,
-      cursorStyle,
-    });
-    return;
-  }
+    if (target.id === "canvas-container") {
+        createNewBox({
+            event,
+            setElements,
+            activeTool,
+            lastSelected,
+            setActiveTool,
+            selectedTarget,
+            pointerOffset,
+            setElementState,
+            selectedResizeBorder,
+            cursorStyle,
+        });
+        return;
+    }
 
-  updateSelectedTarget({ target, selectedTarget, lastSelected });
-  selectedMode!.current = Modes.GRAB;
+    updateSelectedTarget({ target, selectedTarget, lastSelected });
+    selectedMode!.current = Modes.GRAB;
 
-  if (!elementNode) return;
+    if (!elementNode) return;
 
-  const rect = elementNode.getBoundingClientRect();
+    const rect = elementNode.getBoundingClientRect();
 
-  pointerOffset!.current = {
-    x: event!.clientX - rect.left,
-    y: event!.clientY - rect.top,
-  };
+    pointerOffset!.current = {
+        x: event!.clientX - rect.left,
+        y: event!.clientY - rect.top,
+    };
 
-  setElements!((prev) => toggleToolBox(prev, selectedTarget!.current!));
+    setElements!((prev) => toggleToolBox(prev, selectedTarget!.current!));
 };
 
 
@@ -444,10 +440,10 @@ export function updateSelectedTarget({ target, selectedTarget, elementID, lastSe
         lastSelected!.current = elementID;
         return;
     }
-    
+
     const elementNode = target.closest("[data-element-id]");
     if (!elementNode) return;
-    
+
     const boxId = elementNode.getAttribute("data-element-id")!;
     selectedTarget!.current = boxId;
     lastSelected!.current = boxId;
@@ -463,11 +459,13 @@ export const handlePointerUp = ({ selectedMode, selectedTarget, cursorStyle, set
 
     const hoveredId = currentHovered?.current;
     const draggedId = currentSelectedElement;
-    
 
-    if (hoveredId && draggedId && elements?.[draggedId]) {
 
-        const draggedElement: ElementAttr = elements[draggedId];
+    if (hoveredId && draggedId) {
+
+        const draggedElement: ElementAttr | undefined = findInTree(elements, draggedId);
+
+        if(!draggedElement)return;
 
         setElements!((prev) => {
 
@@ -487,8 +485,8 @@ export const handlePointerUp = ({ selectedMode, selectedTarget, cursorStyle, set
                     },
                     position: { x: hoveredId.relativePosition.x, y: hoveredId.relativePosition.y }
                 };
-                
-                nextState = {...removeElementFromTree({ elements:nextState, targetId:draggedId })}
+
+                nextState = { ...removeElementFromTree({ elements: nextState, targetId: draggedId }) }
                 nextState[hoveredId.elementID] = {
                     ...parent,
                     currentState: CurrentState.IDLE,
@@ -498,40 +496,40 @@ export const handlePointerUp = ({ selectedMode, selectedTarget, cursorStyle, set
                     },
                 };
             }
-            
+
             return nextState;
         });
 
-        
+
     } else {
 
         setElements!((prev) =>
-        updateNestedElement(prev, currentSelectedElement ?? "", (el) => ({
-            ...el,
-            currentState: CurrentState.IDLE,
-        }))
-    );
+            updateNestedElement(prev, currentSelectedElement ?? "", (el) => ({
+                ...el,
+                currentState: CurrentState.IDLE,
+            }))
+        );
     };
 
     if (currentDragged?.current && currentHovered?.current) {
         currentDragged!.current = null;
         currentHovered!.current = null;
     }
-    
-    reset({cursorStyle, selectedMode, selectedTarget, selectedResizeBorder})
+
+    reset({ cursorStyle, selectedMode, selectedTarget, selectedResizeBorder })
 
 };
 
 
-export function reset({cursorStyle,selectedMode, selectedTarget, selectedResizeBorder} :Partial<pageEditProps>){
-    
+export function reset({ cursorStyle, selectedMode, selectedTarget, selectedResizeBorder }: Partial<pageEditProps>) {
+
     const draggedDOM = document.querySelector(`[data-element-id="${selectedTarget?.current}"]`) as HTMLElement;
-   
+
     if (draggedDOM) draggedDOM.style.pointerEvents = "auto";
 
     cursorStyle!.current = null;
     selectedMode!.current = Modes.GRAB;
     selectedTarget!.current = null;
     selectedResizeBorder!.current = null;
-    
+
 }
