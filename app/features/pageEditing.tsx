@@ -1,6 +1,8 @@
 import { CurrentState, type ElementAttr, type HoveredElementType, type initResizingProps, type pageEditProps, type Position } from "~/util/types";
 import { Modes } from "~/util/types";
-import { findInTree, getContainerRelativePosition, getRezingCursorStyle, removeElementFromTree, toggleToolBox, updateNestedElement } from "./util";
+import { findInTree, findInTreeByState, getContainerRelativePosition, getRezingCursorStyle, removeElementFromTree, toggleToolBox, updateNestedElement } from "./util";
+
+const PIXEL_SIZE = 16;
 
 const resizeCanvasElement = ({ event, elementState, pointerOffset, setElements, selectedResizeBorder, selectedTarget }: Partial<pageEditProps>) => {
 
@@ -18,6 +20,7 @@ const resizeCanvasElement = ({ event, elementState, pointerOffset, setElements, 
 
 
 export const HandleCornerResize = (props: Partial<pageEditProps>) => {
+
     if (!props.event || !props.pointerOffset?.current || !props.setElements) return;
 
     const selectedElementID = props.selectedTarget?.current as string;
@@ -33,10 +36,10 @@ export const HandleCornerResize = (props: Partial<pageEditProps>) => {
 
     props.pointerOffset.current = { x: props.event.clientX, y: props.event.clientY };
 
-    const pixelSize = 16;
     const sensitivity = 0.6;
 
     props.setElements((prev) => {
+
         return updateNestedElement(prev, selectedElementID, (currentEl) => {
             const currentWidth = currentEl.size?.width ?? 1;
             const currentHeight = currentEl.size?.height ?? 1;
@@ -48,8 +51,8 @@ export const HandleCornerResize = (props: Partial<pageEditProps>) => {
             const xDir = corner === "tr" || corner === "br" ? 1 : -1;
             const yDir = corner === "bl" || corner === "br" ? 1 : -1;
 
-            const gridDeltaX = ((rawDeltaX * xDir) / pixelSize) * sensitivity;
-            const gridDeltaY = ((rawDeltaY * yDir) / pixelSize) * sensitivity;
+            const gridDeltaX = ((rawDeltaX * xDir) / PIXEL_SIZE) * sensitivity;
+            const gridDeltaY = ((rawDeltaY * yDir) / PIXEL_SIZE) * sensitivity;
 
             const combinedDelta = (gridDeltaX + gridDeltaY) / 2;
 
@@ -100,8 +103,6 @@ export const HandleEdgeResize = (props: Partial<pageEditProps>) => {
 
     props.pointerOffset.current = { x: props.event.clientX, y: props.event.clientY };
 
-    const pixelSize = 16;
-
     props.setElements((prev) => {
         return updateNestedElement(prev, selectedElementID, (currentEl) => {
             const currentWidth = currentEl.size?.width ?? 1;
@@ -115,20 +116,20 @@ export const HandleEdgeResize = (props: Partial<pageEditProps>) => {
             let newY = currentY;
 
             if (edge === "right") {
-                const deltaWidth = rawDeltaX / pixelSize;
+                const deltaWidth = rawDeltaX / PIXEL_SIZE;
                 newWidth = Math.max(1, currentWidth + deltaWidth);
             } else if (edge === "left") {
-                const deltaWidth = -rawDeltaX / pixelSize;
+                const deltaWidth = -rawDeltaX / PIXEL_SIZE;
                 newWidth = Math.max(1, currentWidth + deltaWidth);
                 const actualWidthChange = newWidth - currentWidth;
                 newX = currentX - actualWidthChange;
             }
 
             if (edge === "bottom") {
-                const deltaHeight = rawDeltaY / pixelSize;
+                const deltaHeight = rawDeltaY / PIXEL_SIZE;
                 newHeight = Math.max(1, currentHeight + deltaHeight);
             } else if (edge === "top") {
-                const deltaHeight = -rawDeltaY / pixelSize;
+                const deltaHeight = -rawDeltaY / PIXEL_SIZE;
                 newHeight = Math.max(1, currentHeight + deltaHeight);
                 const actualHeightChange = newHeight - currentHeight;
                 newY = currentY - actualHeightChange;
@@ -221,6 +222,7 @@ export const updateElementsPosition = ({
     let updatedzIndex: number | null = null;
 
     if (underCursorElementID && underCursorElementID !== boxId) {
+
       const hoverTargetEl = elements ? findInTree(elements, underCursorElementID) : undefined;
       const zIndex = hoverTargetEl?.zIndex ?? 0;
 
@@ -240,6 +242,7 @@ export const updateElementsPosition = ({
     }
 
     setElements!((prev) => {
+
       let nextState = updateNestedElement(prev, boxId, (draggedEl) => ({
         ...draggedEl,
         position: { x, y },
@@ -252,6 +255,15 @@ export const updateElementsPosition = ({
           ...hoveredEl,
           currentState: CurrentState.HOVERED,
         }));
+    }else{
+          const prevHoveredEl = findInTreeByState(nextState, "currentState", CurrentState.HOVERED);
+          if(prevHoveredEl){
+
+              nextState = updateNestedElement(nextState, prevHoveredEl.id, (hoveredEl) => ({
+             ...hoveredEl,
+             currentState: CurrentState.IDLE,
+           }));
+          }
       }
 
       return nextState;
@@ -293,9 +305,10 @@ export const createNewBox = ({ event, setElements, activeTool, setActiveTool, la
     };
 
     const boxID = crypto.randomUUID();
+    const offset = 2;
     const container = event!.currentTarget.getBoundingClientRect();
-    const x = (event!.clientX - container.left - 2) / 16;
-    const y = (event!.clientY - container.top - 2) / 16;
+    const x = (event!.clientX - container.left - offset) / PIXEL_SIZE;
+    const y = (event!.clientY - container.top - offset) / PIXEL_SIZE;
     const target = event?.target as HTMLElement;
     target.setPointerCapture(event!.pointerId);
 
@@ -327,10 +340,11 @@ export const createNewBox = ({ event, setElements, activeTool, setActiveTool, la
             currentStateInTree: {
                 isChildElement: false,
                 parentElementID: null,
-                parentElement:null
             }
         },
     }));
+
+    
 
     initializeResizing({ target, selectedTarget, props: { event, lastSelected, pointerOffset, setElementState, selectedResizeBorder, cursorStyle, setElements }, resizePoint: "br", elementId: boxID });
     setActiveTool!(Modes.GRAB);
@@ -372,6 +386,7 @@ export const handlePointerDownContainer = ({
   const elementNode = target.closest("[data-element-id]") as HTMLElement;
   const boxId = elementNode?.getAttribute("data-element-id")!;
   const resizePoint = target.dataset.resizepoint ?? null;
+  console.log(elements);
 
   if (resizePoint) {
     initializeResizing({
@@ -439,10 +454,9 @@ export function updateSelectedTarget({ target, selectedTarget, elementID, lastSe
 }
 
 
-export const handlePointerUp = ({ selectedMode, lastSelected, selectedTarget, cursorStyle, setElementState, setElements, selectedResizeBorder, event, currentHovered, elements, currentDragged }: Partial<pageEditProps>) => {
+export const handlePointerUp = ({ selectedMode, selectedTarget, cursorStyle, setElementState, setElements, selectedResizeBorder, event, currentHovered, elements, currentDragged }: Partial<pageEditProps>) => {
 
     event?.preventDefault();
-    let draggedElement: ElementAttr | null = null;
     const currentSelectedElement = selectedTarget?.current;
 
     setElementState!(prev => CurrentState.DRAG);
@@ -492,7 +506,7 @@ export const handlePointerUp = ({ selectedMode, lastSelected, selectedTarget, cu
     } else {
 
         setElements!((prev) =>
-        updateNestedElement(prev, lastSelected?.current ?? "", (el) => ({
+        updateNestedElement(prev, currentSelectedElement ?? "", (el) => ({
             ...el,
             currentState: CurrentState.IDLE,
         }))
@@ -520,5 +534,4 @@ export function reset({cursorStyle,selectedMode, selectedTarget, selectedResizeB
     selectedTarget!.current = null;
     selectedResizeBorder!.current = null;
     
-
 }

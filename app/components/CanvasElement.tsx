@@ -54,7 +54,6 @@ export function CanvasElement({ id, element, onUpdateStyle, setElements, selecte
           borderStyle: element.borderStyle,
           background: getBackgroundStyle(),
           zIndex:element.zIndex,
-          pointerEvents: element.currentState == CurrentState.DRAG ? "none": "auto"
         }
       }
 

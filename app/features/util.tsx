@@ -134,6 +134,18 @@ export const findInTree = (tree: Record<string, ElementAttr>,id: string): Elemen
       return undefined;
     };
 
+
+export const findInTreeByState = (tree: Record<string, ElementAttr>, state: keyof ElementAttr, equator:any): { id:string, element: ElementAttr } | undefined => {
+      for (const [key, val] of Object.entries(tree)) {
+        if (val[state] === equator) return { id:key, element:val };
+        if (val.canvasChildren) {
+          const found = findInTreeByState(val.canvasChildren, state, equator);
+          if (found) return found;
+        }
+      }
+      return undefined;
+    };
+
 export const getContainerRelativePosition = (
   container: HTMLElement,
   event: React.PointerEvent<Element> | undefined,

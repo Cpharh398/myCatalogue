@@ -32,12 +32,16 @@ export function Canvas() {
 
   return (
     <div
+    
       id="canvas-container"
       onPointerDown={event => handlePointerDownContainer({ event, lastSelected, elements, cursorStyle, setElements, selectedMode, selectedTarget, pointerOffset, activeTool:activeTool, setActiveTool, setElementState, selectedResizeBorder })}
       onPointerMove={event => handlePointerMove({ event, pointerOffset, selectedMode, elements, selectedTarget, setElements, elementState, selectedResizeBorder, currentHovered, zIndexUpdated, currentDragged })}
       onPointerUp={event => handlePointerUp({ selectedMode, selectedTarget, setElementState, cursorStyle,selectedResizeBorder, setElements, currentHovered, elements, currentDragged   })}
       className={`bg-slate-100 w-full h-screen relative overflow-hidden select-none  ${cursorStyle.current !== null ? cursorStyle.current : activeTool != Modes.GRAB ? "cursor-crosshair" : "" }`}
     >
+
+      <div className="bg-slate-300/35 pointer-events-none inset-0 absolute" />
+
       <Toolbar
       activeTool={activeTool}
       onSelectTool={(tool)=> setActiveTool(tool)}
@@ -54,6 +58,7 @@ export function Canvas() {
           setElements={setElements}
         />
       ))}
+
     </div>
   );
 }
