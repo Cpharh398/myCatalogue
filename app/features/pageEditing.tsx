@@ -172,7 +172,7 @@ const resizeSectionSelected = ({
 };
 
 
-export function getElementParentDOMNode(isChild: boolean | undefined, parentId:string | undefined | null) {
+export function getElementParentDOMNode(isChild: boolean | undefined, parentId: string | undefined | null) {
     if (isChild && parentId) {
         return document.querySelector(`[data-element-id="${parentId}"]`) as HTMLElement;
     } else {
@@ -212,69 +212,80 @@ export const updateElementsPosition = ({
 
     const draggedDOM = document.querySelector(`[data-element-id="${boxId}"]`) as HTMLElement;
 
-        if (draggedDOM) draggedDOM.style.pointerEvents = "none";
+    if (draggedDOM) draggedDOM.style.pointerEvents = "none";
 
-        const underCursor = document.elementFromPoint(event.clientX, event.clientY) as HTMLElement;
-        // console.log(underCursor);
+    const underCursor = document.elementFromPoint(event.clientX, event.clientY) as HTMLElement;
 
-        if (draggedDOM) draggedDOM.style.pointerEvents = "auto";
+    if (draggedDOM) draggedDOM.style.pointerEvents = "auto";
 
-        const targetContainer = underCursor?.closest("[data-element-id]") as HTMLElement;
-        const underCursorElementID = targetContainer?.dataset.elementId;
-        // console.log(underCursorElementID)
+    const underCursorElementID = underCursor.getAttribute("data-element-id");
 
-        let updatedzIndex: number | null = null;
+    let updatedzIndex: number | null = null;
 
-        if (underCursorElementID && underCursorElementID !== boxId) {
+    if (underCursorElementID && underCursorElementID !== boxId) {
 
-            const hoverTargetEl = elements ? findInTree(elements, underCursorElementID) : undefined;
-            const zIndex = hoverTargetEl?.zIndex ?? 0;
-            
-            currentDragged!.current = boxId;
-            zIndexUpdated!.current = true;
-            updatedzIndex = zIndex + 1;
+        const hoverTargetEl = elements ? findInTree(elements, underCursorElementID) : undefined;
+        const zIndex = hoverTargetEl?.zIndex ?? 0;
 
-            const { x: newX, y: newY } = getContainerRelativePosition(underCursor, event, pointerOffset);
+        currentDragged!.current = boxId;
+        zIndexUpdated!.current = true;
+        updatedzIndex = zIndex + 1;
 
-            currentHovered!.current = {
-                elementID: underCursorElementID,
-                relativePosition: { x: newX, y: newY },
-            };
+        const { x: newX, y: newY } = getContainerRelativePosition(underCursor, event, pointerOffset);
 
-        } else {
-            currentHovered!.current = null;
-            currentDragged!.current = null;
+        currentHovered!.current = {
+            elementID: underCursorElementID,
+            relativePosition: { x: newX, y: newY },
+        };
+
+    } else {
+        currentHovered!.current = null;
+        currentDragged!.current = null;
+    }
+
+
+    setElements!((prev) => {
+        let nextState = updateNestedElement(prev, boxId, (draggedEl) => ({
+            ...draggedEl,
+            position: { x, y },
+            zIndex: updatedzIndex ?? draggedEl.zIndex,
+            currentState: CurrentState.DRAG,
+        }));
+
+        if (isChild && parentId) {
+            nextState = updateNestedElement(nextState, parentId, (parentEl) => ({
+                ...parentEl,
+                zIndex: (updatedzIndex ?? parentEl.zIndex) + 100, // Elevate parent temporarily
+            }));
         }
 
-
-        setElements!((prev) => {
-
-            let nextState = updateNestedElement(prev, boxId, (draggedEl) => ({
-                ...draggedEl,
-                position: { x, y },
-                zIndex: updatedzIndex ?? draggedEl.zIndex,
-                currentState: CurrentState.DRAG,
-            }));
-
-            if (underCursorElementID && underCursorElementID !== boxId) {
-                nextState = updateNestedElement(nextState, underCursorElementID, (hoveredEl) => ({
+        if (underCursorElementID && underCursorElementID !== boxId) {
+            const prevHoveredEl = findInTreeByState(nextState, "currentState", CurrentState.HOVERED);
+            if (prevHoveredEl) {
+                nextState = updateNestedElement(nextState, prevHoveredEl.id, (hoveredEl) => ({
                     ...hoveredEl,
-                    currentState: CurrentState.HOVERED,
+                    currentState: CurrentState.IDLE,
                 }));
-                
-            } else {
-                const prevHoveredEl = findInTreeByState(nextState, "currentState", CurrentState.HOVERED);
-                if (prevHoveredEl) {
-
-                    nextState = updateNestedElement(nextState, prevHoveredEl.id, (hoveredEl) => ({
-                        ...hoveredEl,
-                        currentState: CurrentState.IDLE,
-                    }));
-                }
             }
 
-            return nextState;
-        });
+            nextState = updateNestedElement(nextState, underCursorElementID, (hoveredEl) => ({
+                ...hoveredEl,
+                currentState: CurrentState.HOVERED,
+            }));
+
+        } else {
+            const prevHoveredEl = findInTreeByState(nextState, "currentState", CurrentState.HOVERED);
+            if (prevHoveredEl) {
+                nextState = updateNestedElement(nextState, prevHoveredEl.id, (hoveredEl) => ({
+                    ...hoveredEl,
+                    currentState: CurrentState.IDLE,
+                }));
+            }
+        }
+
+        return nextState;
+    });
+
 
 };
 
@@ -340,8 +351,6 @@ export const createNewBox = ({ event, setElements, activeTool, setActiveTool, la
             }
         },
     }));
-
-
 
     initializeResizing({ target, selectedTarget, props: { event, lastSelected, pointerOffset, setElementState, selectedResizeBorder, cursorStyle, setElements }, resizePoint: "br", elementId: boxID });
     setActiveTool!(Modes.GRAB);
@@ -460,18 +469,17 @@ export const handlePointerUp = ({ selectedMode, selectedTarget, cursorStyle, set
     const hoveredId = currentHovered?.current;
     const draggedId = currentSelectedElement;
 
-
     if (hoveredId && draggedId) {
 
         const draggedElement: ElementAttr | undefined = findInTree(elements, draggedId);
 
-        if(!draggedElement)return;
+        if (!draggedElement) return;
 
         setElements!((prev) => {
 
             let nextState: Record<string, ElementAttr> = { ...prev };
 
-            const parent = nextState[hoveredId.elementID];
+            const parent = findInTree(nextState, hoveredId.elementID);
 
             if (parent) {
 
@@ -487,14 +495,17 @@ export const handlePointerUp = ({ selectedMode, selectedTarget, cursorStyle, set
                 };
 
                 nextState = { ...removeElementFromTree({ elements: nextState, targetId: draggedId }) }
-                nextState[hoveredId.elementID] = {
-                    ...parent,
+                
+                nextState = updateNestedElement(nextState ,hoveredId.elementID, (parentEl)=>({
+                    ...parentEl,
                     currentState: CurrentState.IDLE,
                     canvasChildren: {
-                        ...(parent.canvasChildren ?? {}),
+                        ...parent.canvasChildren,
                         [draggedId]: updatedChild,
                     },
-                };
+
+                }) )
+
             }
 
             return nextState;

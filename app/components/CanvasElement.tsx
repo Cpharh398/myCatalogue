@@ -53,7 +53,7 @@ export function CanvasElement({ id, element, onUpdateStyle, setElements, selecte
           borderColor: element.borderColor,
           borderStyle: element.borderStyle,
           background: getBackgroundStyle(),
-          zIndex:element.zIndex,
+          zIndex:element.currentState === CurrentState.DRAG ? 9999 : element.zIndex,
         }
       }
 
@@ -65,7 +65,7 @@ export function CanvasElement({ id, element, onUpdateStyle, setElements, selecte
       }
 
       {
-        element.currentState == CurrentState.HOVERED && <div className="bg-slate-300/35 pointer-events-none inset-0 absolute" />
+        element.currentState == CurrentState.HOVERED && <HoveredElementHighlight/>
       }
 
       <CanvasChildren  selectedTarget={selectedTarget} selectedElement={selectedElement} children={element.canvasChildren!} setElements={setElements}/>
@@ -162,3 +162,30 @@ export function CanvasChildren( { children, setElements, selectedElement, select
         ));
     };
 } 
+
+
+
+interface HoveredOverlayProps {
+  currentState?: CurrentState;
+  label?: string;
+}
+
+export const HoveredElementHighlight: React.FC<HoveredOverlayProps> = ({
+  currentState,
+  label = "Drop inside",
+}) => {
+  if (currentState !== CurrentState.HOVERED) return null;
+
+  return (
+    <div
+      className="absolute inset-0 pointer-events-none rounded border-2 border-dashed border-blue-500 bg-blue-500/10 z-50 flex items-center justify-center transition-all duration-150"
+      style={{
+        boxShadow: "0 0 12px rgba(59, 130, 246, 0.4)",
+      }}
+    >
+      <span className="bg-blue-600 text-white text-[10px] font-semibold px-2 py-0.5 rounded-full shadow-md uppercase tracking-wider">
+        {label}
+      </span>
+    </div>
+  );
+};
