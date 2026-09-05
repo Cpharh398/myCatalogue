@@ -1,6 +1,7 @@
 import { CurrentState, type AlignmentGuide, type ElementAttr, type HoveredElementType, type initResizingProps, type pageEditProps, type Position } from "~/util/types";
 import { Modes } from "~/util/types";
-import { findInTree, findInTreeByState, getContainerRelativePosition, getRezingCursorStyle, removeElementFromTree, toggleToolBox, updateNestedElement } from "./util";
+import { findInTree, findInTreeByState, getContainerRelativePosition, getRezingCursorStyle, removeElementFromTree, toggleToolBox, updateNestedElement } from "../util";
+import type { JSX } from "react/jsx-runtime";
 
 const PIXEL_SIZE = 16;
 
@@ -88,6 +89,7 @@ export const HandleCornerResize = (props: Partial<pageEditProps>) => {
     if (corner === "tl" || corner === "bl") {
       unsnappedX = currentX - actualWidthChange;
     }
+
     if (corner === "tl" || corner === "tr") {
       unsnappedY = currentY - actualHeightChange;
     }
@@ -390,8 +392,19 @@ export const handlePointerMove = ({ selectedTarget, selectedMode, event, pointer
     }
 };
 
+export function mapActiveToolWithJSXElementTag( activeTool: Modes | undefined): { tag: keyof JSX.IntrinsicElements, content:string } | undefined{
+    if(!activeTool) return;
+    switch(activeTool){
+        case Modes.CONTAINER : return { tag:"div", content:''} ;
+        case Modes.AUDIO : return { tag:"audio", content:''};
+        case Modes.PICTURE : return { tag:"img", content:'https://images.pexels.com/photos/36508145/pexels-photo-36508145/free-photo-of-creative-artisan-crafting-handmade-products.jpeg'};
+        case Modes.TEXT : return { tag: "p", content:'This is a paragraph text'};
+        case Modes.VIDEO : return { tag: "video", content:''};
+        default: return;
+    };
+}
 
-export const createNewBox = ({ event, setElements, activeTool, setActiveTool, lastSelected, selectedTarget, pointerOffset, setElementState, selectedResizeBorder, cursorStyle }: Partial<pageEditProps>) => {
+export const createNewBox = ({ event, setElements, selectedMode, activeTool, setActiveTool, lastSelected, selectedTarget, pointerOffset, setElementState, selectedResizeBorder, cursorStyle }: Partial<pageEditProps>) => {
 
     if (activeTool === Modes.GRAB) {
         setElements!((prev) => toggleToolBox(prev, null));
@@ -405,6 +418,9 @@ export const createNewBox = ({ event, setElements, activeTool, setActiveTool, la
     const y = (event!.clientY - container.top - offset) / PIXEL_SIZE;
     const target = event?.target as HTMLElement;
     target.setPointerCapture(event!.pointerId);
+    const tagContent = mapActiveToolWithJSXElementTag(activeTool)
+    if(!tagContent)return
+    const {tag, content} = tagContent;
 
     setElements!((prev) => ({
         ...prev,
@@ -414,6 +430,8 @@ export const createNewBox = ({ event, setElements, activeTool, setActiveTool, la
         }, {} as Record<string, ElementAttr>),
         [boxID]: {
             showToolBox: true,
+            elementTag: tag,
+            content,
             position: { x, y },
             borderRadius: { radiusBL: 0, radiusBR: 0, radiusTL: 0, radiusTR: 0 },
             borderColor: "#3b82f6",
@@ -478,6 +496,7 @@ export const handlePointerDownContainer = ({
     const elementNode = target.closest("[data-element-id]") as HTMLElement;
     const boxId = elementNode?.getAttribute("data-element-id")!;
     const resizePoint = target.dataset.resizepoint ?? null;
+
 
     if (resizePoint) {
         initializeResizing({

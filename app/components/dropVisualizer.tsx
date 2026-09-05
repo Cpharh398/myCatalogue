@@ -13,8 +13,8 @@ export const DropVisualizer: React.FC<DropVisualizerProps> = ({
   const prevChildrenKeys = useRef<string[]>([]);
 
   useEffect(() => {
+    
     const currentKeys = canvasChildren ? Object.keys(canvasChildren) : [];
-    // console.log(canvasChildren);
     
     // Check if a new child ID was appended to canvasChildren
     const hasNewChild = currentKeys.some(

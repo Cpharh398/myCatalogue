@@ -9,7 +9,7 @@ export const AlignmentGuidesOverlay: React.FC<AlignmentGuidesOverlayProps> = ({ 
   if (!guides || guides.length === 0) return null;
 
   return (
-    <div className="absolute inset-0 pointer-events-none z-[9999]">
+    <div className="absolute inset-0 pointer-events-none z-9999">
       {guides.map((guide, idx) => {
         if (guide.type === "x") {
           // Bounded Vertical Snap Line
