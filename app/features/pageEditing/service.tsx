@@ -452,7 +452,13 @@ export const createNewBox = ({ event, setElements, selectedMode, activeTool, set
             currentStateInTree: {
                 isChildElement: false,
                 parentElementID: null,
-            }
+            },
+            lgSreenStyle: {
+              opacity: 1,
+              
+            },
+            gradientStartPosition: 0,
+            gradientEndPosition: 100,
         },
     }));
 
@@ -491,6 +497,7 @@ export const handlePointerDownContainer = ({
     selectedResizeBorder,
 }: Partial<pageEditProps>) => {
     event?.preventDefault();
+    console.log(elements)
 
     const target = event!.target as HTMLElement;
     const elementNode = target.closest("[data-element-id]") as HTMLElement;

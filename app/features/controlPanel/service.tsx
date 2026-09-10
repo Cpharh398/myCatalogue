@@ -1,45 +1,231 @@
-import type { Position } from "~/util/types";
-import { getContainerRelativePosition } from "../util";
+import { Knobs, type BorderRadius, type ElementAttr, type Position } from "~/util/types";
+import { findInTree, getContainerRelativePosition, updateNestedElement } from "../util";
+
 
 type HandlersProps = {
     event:React.PointerEvent<HTMLDivElement>, 
     isControlPanelSelected: React.RefObject<boolean>, 
     pointerOffset: React.RefObject<Position>,
-    setControlPanelPosition: React.Dispatch<React.SetStateAction<Position>>
+    setControlPanelPosition: React.Dispatch<React.SetStateAction<Position>>,
+    currentSelectedKnob: React.RefObject<Knobs | null>,
+    lastSelected: React.RefObject<string | null>,
+    elements: Record<string, ElementAttr>,
+    setElements: React.Dispatch<React.SetStateAction<Record<string, ElementAttr>>>
 }
 
- export  const HandleControlPanelPointerDown = ({event, isControlPanelSelected, pointerOffset}:HandlersProps)=>{
+
+export const setCurrentSelectedKnob = (controKnob: string | undefined, props: Partial<HandlersProps>) => {
+     
+    if(!controKnob || !props.currentSelectedKnob || !props.pointerOffset || !props.event) return;
+    switch(controKnob){
+        case "x" : props.currentSelectedKnob.current = Knobs.xPosittion         
+            break;     
+        case "y" : props.currentSelectedKnob.current = Knobs.yPosition    
+            break;     
+        case "h" : props.currentSelectedKnob.current = Knobs.height         
+            break;     
+        case "w" : props.currentSelectedKnob.current = Knobs.width      
+            break;     
+        case "r" : props.currentSelectedKnob.current = Knobs.rotation         
+            break;
+        case "o" : props.currentSelectedKnob.current = Knobs.opacity
+            break;
+        case "tl" : props.currentSelectedKnob.current = Knobs.radiusTL
+            break;
+        case "tr" : props.currentSelectedKnob.current = Knobs.radiusTR
+            break;
+        case "bl" : props.currentSelectedKnob.current = Knobs.radiusBL
+            break;
+        case "br" : props.currentSelectedKnob.current = Knobs.radiusBR
+            break;
+        case "ra" : props.currentSelectedKnob.current = Knobs.radiusAll
+            break;     
+        case "start" : props.currentSelectedKnob.current = Knobs.gradientStartPosition
+            break;     
+        case "end" : props.currentSelectedKnob.current = Knobs.gradientEndPosition
+            break;
+        case "angle" : props.currentSelectedKnob.current = Knobs.gradientAngle
+            break;
+        default:return;   
+    }
+
+    props.pointerOffset.current = { 
+      x: props.event.clientX, 
+      y: 0
+    };
+}
+
+ export const HandleControlPanelPointerDown = ({event, isControlPanelSelected, pointerOffset, currentSelectedKnob, lastSelected}:HandlersProps)=>{
     
     event.stopPropagation();
-    const target = event.currentTarget;
-    target.setPointerCapture(event.pointerId);
+    const target = event.target as HTMLElement;
+    const controKnob = target.dataset.controlknob;
+    console.log("Control Knob", controKnob, target)
+    
+    if(controKnob){
+        target.setPointerCapture(event.pointerId);
+        setCurrentSelectedKnob(controKnob, {currentSelectedKnob, lastSelected, event, pointerOffset});
+        return;
+    }
+
+    const currentTarget = event.currentTarget;
+    currentTarget.setPointerCapture(event.pointerId);
     isControlPanelSelected.current = true;
-    const rect = target.getBoundingClientRect();
+    const rect = currentTarget.getBoundingClientRect();
 
     pointerOffset.current = { 
-      x: event.clientX - rect.left, 
+      x: event.clientX - rect.right, 
       y: event.clientY - rect.top
     };
   }
   
- export const HandleSetControlPanelPosition = ({event, isControlPanelSelected, pointerOffset, setControlPanelPosition}:HandlersProps)=>{
+ export const HandlePointerMove = ({event, isControlPanelSelected, pointerOffset, setControlPanelPosition, currentSelectedKnob, lastSelected, elements, setElements }:HandlersProps)=>{
 
-    event.preventDefault();
-    if(!isControlPanelSelected.current || !pointerOffset?.current)return;
+    event.preventDefault();  
+    if(!pointerOffset?.current) return;
+
+    if(currentSelectedKnob.current){
+        updateElementWithControlKnob({ event, lastSelected, elements, currentSelectedKnob, setElements, pointerOffset })
+        return;
+    }
     
-    const referenceDOM = document.getElementById("canvas-container");
-    if(!referenceDOM)return;
-
-    const {x, y} = getContainerRelativePosition(referenceDOM, event, pointerOffset);
-    setControlPanelPosition(({x:x*16, y:y*16}));
+    if(isControlPanelSelected.current){
+        const referenceDOM = document.getElementById("canvas-container");
+        if(!referenceDOM)return;
+    
+        const {x, y} = getContainerRelativePosition(referenceDOM, event, pointerOffset, true);
+        setControlPanelPosition(({x:x*16*-1, y:y*16}));
+    };
   }
   
-  export const HandleControlPanelPointerUp = ({event, isControlPanelSelected, }:Partial<HandlersProps>)=>{
-    if(!event || !isControlPanelSelected)return;
+  export const HandleControlPanelPointerUp = ({event, isControlPanelSelected, currentSelectedKnob }:Partial<HandlersProps>)=>{
+    if(!event || !isControlPanelSelected || !currentSelectedKnob )return;
 
     isControlPanelSelected.current = false;
     const target = event.target as HTMLElement;
+    currentSelectedKnob.current = null;
+
     target.releasePointerCapture(event.pointerId);
   }
 
   
+ export function updateElementWithControlKnob(props: Partial<HandlersProps>) {
+     
+     if (
+         !props.elements ||
+         !props.lastSelected?.current ||
+         !props.currentSelectedKnob?.current ||
+    !props.event ||
+    !props.pointerOffset?.current
+) {
+    return;
+}
+
+  const currentX = props.event.clientX;
+
+  const deltaX = currentX - (props.pointerOffset.current.x ?? currentX);
+
+  const sensitivity = 0.5;
+  const newX = (deltaX * sensitivity) / 16;
+  const updatedValues = getUpdatedValues({ props, newX });
+
+  if (props.setElements) {
+
+    props.setElements((prev) =>{
+        
+        return updateNestedElement(prev, props.lastSelected!.current!, (updatedEl) => ({
+        ...updatedEl,
+        position: {
+          x: (updatedEl.position?.x ?? 0) + ( updatedValues?.positionUpdate?.x ?? 0),
+          y: (updatedEl.position?.y ?? 0) + (updatedValues?.positionUpdate?.y ?? 0),
+        },
+        size:{
+            width: (updatedEl.size?.width ?? 0) + (updatedValues?.widthUpdate?.width ?? 0),
+            height: (updatedEl.size?.height ?? 0) + (updatedValues?.heightUpdate?.height ?? 0),
+        },
+        borderRadius: {
+            radiusTL:  Math.max(0, Math.min(100, Number(((updatedEl.borderRadius?.radiusTL ?? 0) + (updatedValues?.borderRadiusUpdate?.radiusTL ?? 0)).toFixed(2)))),
+            radiusTR: Math.max(0, Math.min(100, Number(((updatedEl.borderRadius?.radiusTR ?? 0) + (updatedValues?.borderRadiusUpdate?.radiusTR ?? 0)).toFixed(2)))),
+            radiusBL: Math.max(0, Math.min(100, Number(((updatedEl.borderRadius?.radiusBL ?? 0) + (updatedValues?.borderRadiusUpdate?.radiusBL ?? 0)).toFixed(2)))),
+            radiusBR: Math.max(0, Math.min(100, Number(((updatedEl.borderRadius?.radiusBR ?? 0) + (updatedValues?.borderRadiusUpdate?.radiusBR ?? 0)).toFixed(2)) )) ,
+        },
+        lgSreenStyle: {
+            ...updatedEl.lgSreenStyle,
+            opacity: Math.max(0, Math.min(1, Number(((updatedValues?.opacityUpdate?.opacity ?? 0) + Number(updatedEl.lgSreenStyle?.opacity ?? 0)).toFixed(2)) )),
+        },
+        gradientStartPosition: Math.max(0, Math.min(100, Number(((updatedEl.gradientStartPosition ?? 0) + (updatedValues?.gradientPositionUpdate?.gradientStartPosition ?? 0)).toFixed(2)) )),
+        gradientEndPosition: Math.max(0, Math.min(100, Number(((updatedEl.gradientEndPosition ?? 0) + (updatedValues?.gradientPositionUpdate?.gradientEndPosition ?? 0)).toFixed(2)) )),
+        gradientAngle: Math.max(0, Math.min(360, Number(( (updatedEl.gradientAngle ?? 0) + Number(updatedValues?.gradientAngleUpdate.gradientAngle ?? 0)).toFixed(2)) )),
+      }))}
+    );
+  }
+
+  props.pointerOffset.current = {
+    x: currentX,
+    y: 0,
+  };
+}
+
+export function getUpdatedValues( {props, newX}: { props: Partial<HandlersProps>, newX: number }) {
+
+    let positionUpdate: { x?: number; y?: number } = {};
+  let rotationUpdate: { rotation?: number } = {};
+  let opacityUpdate: { opacity?: number } = {};
+  let widthUpdate: { width?: number } = {};
+  let heightUpdate: { height?: number } = {};
+  let borderRadiusUpdate: Partial<BorderRadius> = {};
+  let gradientPositionUpdate: { gradientStartPosition?: number; gradientEndPosition?: number } = {};
+  let gradientAngleUpdate: { gradientAngle?: number } = {};
+
+  switch (props.currentSelectedKnob!.current) {
+    case Knobs.xPosittion:
+      positionUpdate = { x: newX };
+      break;
+    case Knobs.yPosition:
+        positionUpdate = { y: newX };
+        break;
+    case Knobs.width:
+      widthUpdate = { width: newX };
+      break;
+    case Knobs.height:
+      heightUpdate = { height: newX };
+      break;
+    case Knobs.rotation:
+      rotationUpdate = { rotation: newX };
+      break;
+    case Knobs.opacity:
+      opacityUpdate = { opacity: newX };
+      break;
+    case Knobs.radiusAll:
+        borderRadiusUpdate = { radiusTL: newX, radiusTR: newX, radiusBL: newX, radiusBR: newX };
+        break;
+    case Knobs.radiusTL:
+      borderRadiusUpdate = { radiusTL: newX };
+      break;
+    case Knobs.radiusTR:
+      borderRadiusUpdate = { radiusTR: newX };
+      break;
+    case Knobs.radiusBL:
+      borderRadiusUpdate = { radiusBL: newX };
+      break;    
+    case Knobs.radiusBR:
+      borderRadiusUpdate = { radiusBR: newX };
+      break;
+    case Knobs.gradientStartPosition:
+        gradientPositionUpdate = { gradientStartPosition: newX };
+        break;
+    case Knobs.gradientEndPosition:
+        gradientPositionUpdate = { gradientEndPosition: newX };
+        break;
+    case Knobs.gradientAngle:
+        gradientAngleUpdate = { gradientAngle: newX };
+        break;
+    default:
+      break;
+  }
+
+
+  return { positionUpdate, rotationUpdate, opacityUpdate, widthUpdate, heightUpdate, borderRadiusUpdate, gradientPositionUpdate, gradientAngleUpdate };
+
+
+}

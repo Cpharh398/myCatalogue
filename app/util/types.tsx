@@ -1,3 +1,4 @@
+import type React from "react";
 import type { JSX } from "react/jsx-runtime";
 
 export type Position = {
@@ -44,8 +45,13 @@ export type ElementAttr = {
   zIndex: number,
   canvasChildren?: Record<string, ElementAttr>,
   isChildElement?: boolean,
-  currentStateInTree?: CurrentStateInTree
+  currentStateInTree?: CurrentStateInTree,
+  lgSreenStyle?: React.CSSProperties,
+  gradientStartPosition?: number,
+  gradientEndPosition?: number,
 };
+
+
 
 export enum CurrentState {
   IDLE,
@@ -86,7 +92,6 @@ export type pageEditProps = {
   currentDragged: React.RefObject<string | null>
   lastSelected?: React.RefObject<string | null>
   setGuide: React.Dispatch<React.SetStateAction<AlignmentGuide[]>>
-
 }
 
 export type HoveredElementType = {
@@ -110,3 +115,19 @@ export interface AlignmentGuide {
   length: number;     // How long the line segment extends (in rem)
 }
 
+export enum Knobs { 
+  xPosittion = "xPosittion",
+  yPosition = "yPosition",
+  width = "width",
+  height = "height",
+  rotation = "rotation",
+  opacity = "opacity",
+  radiusTL = "radiusTL",
+  radiusTR = "radiusTR",
+  radiusBL = "radiusBL",
+  radiusBR = "radiusBR",
+  radiusAll = "radiusAll",
+  gradientStartPosition = "gradientStartPosition",
+  gradientEndPosition = "gradientEndPosition",
+  gradientAngle = "gradientAngle"
+}

@@ -1,9 +1,7 @@
 import type { ElementAttr, Position } from "~/util/types";
 
 export const updateElementStyle = (id: string, updater: (prev: ElementAttr) => Partial<ElementAttr>, setElements: (value: React.SetStateAction<Record<string, ElementAttr>>) => void) => {
-
     if(!id)return;
-
     setElements!((prev) => ({
         ...prev,
         [id]: {
@@ -159,7 +157,7 @@ export const getContainerRelativePosition = (
   const rect = container.getBoundingClientRect();
   const PIXEL_SIZE = 16;
   
-  let x = (event!.clientX - rect.left  - (pointerOffset!.current.x ?? 0)) / PIXEL_SIZE ;
+  let x = (event!.clientX - (isControlPanel ? rect.right : rect.left) - (pointerOffset!.current.x ?? 0)) / PIXEL_SIZE ;
   let y = (event!.clientY - rect.top - (pointerOffset!.current.y ?? 0)) / PIXEL_SIZE ;
 
   return { x, y };

@@ -11,25 +11,33 @@ type ElementProps = {
   id: string;
   selectedElement: string;
   element: ElementAttr;
-  elements:Record<string, ElementAttr>
+  elements: Record<string, ElementAttr>
   onUpdateStyle: (
     updater: (prev: ElementAttr) => Partial<ElementAttr>
   ) => void;
   setElements: React.Dispatch<React.SetStateAction<Record<string, ElementAttr>>>;
   selectedTarget: React.RefObject<string | null>;
-  guide:AlignmentGuide[]
-   setGuide: React.Dispatch<React.SetStateAction<AlignmentGuide[]>>
+  guide: AlignmentGuide[]
+  setGuide: React.Dispatch<React.SetStateAction<AlignmentGuide[]>>
 };
 
 export function CanvasElement({ id, element, guide, setGuide, onUpdateStyle, setElements, selectedElement, selectedTarget }: ElementProps) {
-  
-  const getBackgroundStyle = () => {
 
-    if (element.useGradient) {
-      return `linear-gradient(${element.gradientAngle}deg, ${element.gradientStart}, ${element.gradientEnd})`;
-    }
-    return element.backgroundColor;
-  };
+const getBackgroundStyle = () => {
+  if (element.useGradient) {
+    // 1. Format angle properly with "deg" (remove "to")
+    const angle = typeof element.gradientAngle === "number" 
+      ? `${element.gradientAngle}deg` 
+      : `${element.gradientAngle || "90"}deg`;
+      
+    const startPos = element.gradientStartPosition ?? 0;
+    const endPos = element.gradientEndPosition ?? 100;
+
+    return `linear-gradient(${angle}, ${element.gradientStart || "#ffffff"} ${startPos}%, ${element.gradientEnd || "#000000"} ${endPos}%)`;
+  }
+
+  return element.backgroundColor || "transparent";
+};
 
   const containerStyle: React.CSSProperties = {
     position: "absolute",
@@ -46,31 +54,32 @@ export function CanvasElement({ id, element, guide, setGuide, onUpdateStyle, set
     borderStyle: element.borderStyle,
     background: getBackgroundStyle(),
     zIndex: element.currentState === CurrentState.DRAG ? 9999 : element.zIndex,
+    ...element.lgSreenStyle,
   };
 
   const Tag = (element.elementTag || "div") as keyof JSX.IntrinsicElements;
-  
+
   return (
     <div
       data-element-id={id}
       style={containerStyle}
-      className = {`absolute touch-none transition-transform shadow-md  ${ element.currentState === CurrentState.IDLE ? "cursor-grab active:cursor-grabbing": "" } flex flex-col justify-between`}
+      className={`absolute touch-none transition-transform shadow-md  ${element.currentState === CurrentState.IDLE ? "cursor-grab active:cursor-grabbing" : ""} flex flex-col justify-between`}
     >
 
       {
-        element.currentState == CurrentState.HOVERED && 
+        element.currentState == CurrentState.HOVERED &&
         <div
-        style={{
-          boxShadow: "0 0 12px rgba(59, 130, 246, 0.4)",
-      }} 
-      className="absolute inset-0 pointer-events-none rounded border-2 border-dashed border-blue-500 bg-blue-500/10 z-50 flex items-center justify-center transition-all duration-150" />
-    }
+          style={{
+            boxShadow: "0 0 12px rgba(59, 130, 246, 0.4)",
+          }}
+          className="absolute inset-0 pointer-events-none rounded border-2 border-dashed border-blue-500 bg-blue-500/10 z-50 flex items-center justify-center transition-all duration-150" />
+      }
 
       <ResizingHandles isVisible={element.showToolBox} />
-      <CanvasChildren  guide={guide} setGuide={setGuide} selectedTarget={selectedTarget} selectedElement={selectedElement} children={element.canvasChildren!} setElements={setElements}/>
+      <CanvasChildren guide={guide} setGuide={setGuide} selectedTarget={selectedTarget} selectedElement={selectedElement} children={element.canvasChildren!} setElements={setElements} />
       <HoveredElementHighlight currentState={element.currentState} />
-      <DropVisualizer  canvasChildren={element.canvasChildren}/>
-      
+      <DropVisualizer canvasChildren={element.canvasChildren} />
+
       <RenderInnerContent Tag={Tag} element={element} id={id} />
       {/* <ToolBox
         id={id}
@@ -78,7 +87,7 @@ export function CanvasElement({ id, element, guide, setGuide, onUpdateStyle, set
         element={element}
         onUpdateStyle={onUpdateStyle}
       /> */}
-    
+
     </div>
   );
 }
@@ -88,59 +97,59 @@ export function CanvasElement({ id, element, guide, setGuide, onUpdateStyle, set
 
 type canvasChildProps = {
   selectedElement: string;
-  children:Record<string, ElementAttr>
+  children: Record<string, ElementAttr>
   setElements: React.Dispatch<React.SetStateAction<Record<string, ElementAttr>>> | undefined,
   selectedTarget: React.RefObject<string | null>;
-  guide:AlignmentGuide[]
+  guide: AlignmentGuide[]
   setGuide: React.Dispatch<React.SetStateAction<AlignmentGuide[]>>
 };
 
-  
-export function CanvasChildren( { children, setElements, selectedElement, selectedTarget, guide, setGuide }: canvasChildProps){
 
-    const elements = children;
-    if(children && setElements){
-        return Object.entries(children).map(([id, element]) => (
-            <CanvasElement
-              key={id}
-              id={id}
-              guide={guide}
-              setGuide={setGuide}
-              setElements={setElements}
-              elements={elements}
-              selectedTarget={selectedTarget}
-              selectedElement={selectedElement}
-              element={element}
-              onUpdateStyle = { (updater) => updateElementStyle(id, updater, setElements!) }
-            />
-        ));
-    };
-} 
+export function CanvasChildren({ children, setElements, selectedElement, selectedTarget, guide, setGuide }: canvasChildProps) {
 
-
-
-
-
-export function RenderInnerContent({Tag, element,id}:{Tag: keyof JSX.IntrinsicElements, element: ElementAttr, id:string}){
-
-    if(Tag === "div")return;
-
-    // Specialized rendering for non-div tags inside the outer wrapper
-    if (Tag === "img") {
-      return (
-        <img
-          src={element.content}
-          alt={`Canvas element ${id}`}
-          draggable={false}
-          className="w-full h-full object-cover pointer-events-none rounded-[inherit]"
-        />
-      );
-    }
-
-    // Default tag rendering h1, h2, p, button
-    return (
-      <Tag className="w-full h-full flex items-center justify-center wrap-break-word pointer-events-none">
-        {element.content}
-      </Tag>
-    );
+  const elements = children;
+  if (children && setElements) {
+    return Object.entries(children).map(([id, element]) => (
+      <CanvasElement
+        key={id}
+        id={id}
+        guide={guide}
+        setGuide={setGuide}
+        setElements={setElements}
+        elements={elements}
+        selectedTarget={selectedTarget}
+        selectedElement={selectedElement}
+        element={element}
+        onUpdateStyle={(updater) => updateElementStyle(id, updater, setElements!)}
+      />
+    ));
   };
+}
+
+
+
+
+
+export function RenderInnerContent({ Tag, element, id }: { Tag: keyof JSX.IntrinsicElements, element: ElementAttr, id: string }) {
+
+  if (Tag === "div") return;
+
+  // Specialized rendering for non-div tags inside the outer wrapper
+  if (Tag === "img") {
+    return (
+      <img
+        src={element.content}
+        alt={`Canvas element ${id}`}
+        draggable={false}
+        className="w-full h-full object-cover pointer-events-none rounded-[inherit]"
+      />
+    );
+  }
+
+  // Default tag rendering h1, h2, p, button
+  return (
+    <Tag className="w-full h-full flex items-center justify-center wrap-break-word pointer-events-none">
+      {element.content}
+    </Tag>
+  );
+};
