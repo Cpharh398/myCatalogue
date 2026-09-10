@@ -3,6 +3,7 @@ import { findInTree, removeElementFromTree } from "~/features/util";
 import type { BorderRadius, CurrentState, ElementAttr, Position } from "~/util/types";
 import { Link, Trash } from "lucide-react"
 import { AlignStartVertical, AlignEndVertical, AlignCenterHorizontal, AlignStartHorizontal, AlignCenterVertical, AlignEndHorizontal, Angle } from "lucide-react"
+import { ParentElementPreview } from "./elementPreview";
 
 type ToolBoxProps = {
     currentElement: string | null;
@@ -65,7 +66,7 @@ export function ControlPanel({
             <AppearanceControl setShowIndividualRadius={setShowIndividualRadius} currentUniformRadius={currentUniformRadius} element={element} showIndividualRadius={showIndividualRadius} onUpdateStyle={onUpdateStyle} />
             <FillControl element={element} onUpdateStyle={onUpdateStyle} />
             <StrokeControl element={element} onUpdateStyle={onUpdateStyle} />
-            <LinkParentControl element={element}  props={{ onDelinkElement }}/>
+            <LinkParentControl element={element}  props={{ onDelinkElement, elements }}/>
             <Actions onDeleteElement={onDeleteElement} />
         </div>
     );
@@ -338,7 +339,11 @@ export function GradientControls({ element, onUpdateStyle }: GradientControlsPro
 
 
 export function LinkParentControl({ element, props }: { element: ElementAttr, props: Partial<ToolBoxProps>}) {
-    if (!element.currentStateInTree?.isChildElement) return;
+   
+    if (!element.currentStateInTree?.isChildElement || !element.currentStateInTree.parentElementID ) return;
+    const parentElement = findInTree(props.elements, element.currentStateInTree.parentElementID);
+
+    if(!parentElement)return;
 
     // Helper to block all pointer event bubbling
     const stopPropagation = (e: React.SyntheticEvent) => {
@@ -368,7 +373,13 @@ export function LinkParentControl({ element, props }: { element: ElementAttr, pr
                 className="flex items-center border border-[#383838] rounded p-1 justify-between hover:bg-[#383838] cursor-pointer transition-colors"
             >
                 <Link className="pointer-events-none text-[#b3b3b3]" size={16} />
-                <span className="text-[10px] text-[#b3b3b3]">Unlink Container</span>
+      {parentElement ? (
+        <ParentElementPreview parentElement={parentElement} />
+      ) : (
+        <div className="text-[10px] text-[#808080] italic">
+          element not found
+        </div>
+      )}
             </div>
 
             {/* Delete Element Trash Button */}
@@ -376,13 +387,11 @@ export function LinkParentControl({ element, props }: { element: ElementAttr, pr
                 type="button"
                 onPointerDown={stopPropagation}
                 onMouseDown={stopPropagation}
-                onClick={e => {
-                    console.log("Delink Element Clicked", props.onDelinkElement);
-
-                    props.onDelinkElement?.(e)}}
+                onClick={props.onDelinkElement}
                 className="absolute top-3 right-2 p-1 bg-red-600/20 hover:bg-red-600/30 text-red-400 rounded cursor-pointer transition-colors"
                 title="Delete Element"
             > 
+
                 <Trash size={15} /> 
             </button>
         </div>
