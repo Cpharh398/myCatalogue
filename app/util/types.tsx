@@ -68,7 +68,9 @@ export enum Modes {
   AUDIO,
   PICTURE,
   TEXT,
-  AI
+  AI,
+  BUTTON,
+  LIBRARY
 }
 
 

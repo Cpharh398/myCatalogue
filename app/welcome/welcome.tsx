@@ -38,7 +38,6 @@ export function Canvas() {
     setElements,
   });
 
-  console.log(iscontrolPanelVisible)
 
   const handleDelinkeElement = (e: React.MouseEvent<HTMLElement>) => {
     e.stopPropagation();
