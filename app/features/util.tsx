@@ -75,6 +75,7 @@ export function updateNestedElement(
   for (const [id, element] of Object.entries(elements)) {
     if (id === targetId) {
       result[id] = updater(element);
+      console.log(result[id])
     } else {
       let updatedChildren: Record<string, ElementAttr>  = {};
 
