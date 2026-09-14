@@ -3,7 +3,7 @@ import { findInTree, getContainerRelativePosition, updateNestedElement } from ".
 
 
 type HandlersProps = {
-    event:React.PointerEvent<HTMLDivElement>, 
+    event:React.PointerEvent<HTMLElement>, 
     isControlPanelSelected: React.RefObject<boolean>, 
     pointerOffset: React.RefObject<Position>,
     setControlPanelPosition: React.Dispatch<React.SetStateAction<Position>>,

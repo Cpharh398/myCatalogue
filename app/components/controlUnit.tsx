@@ -13,9 +13,11 @@ type ToolBoxProps = {
     onDeleteElement?: () => void;
     onDelinkElement?: (e: React.MouseEvent<HTMLElement>) => void;
     contolPanelPosition: Position;
-    onSetControlPanelPosition: (event: React.PointerEvent<HTMLDivElement>) => void;
-    onPointerDown: (event: React.PointerEvent<HTMLDivElement>) => void;
-    onPointerUp: (event: React.PointerEvent<HTMLDivElement>) => void;
+    iscontrolPanelVisible: Boolean;
+    onUpdateMinimized: (value: Boolean) => void;
+    onSetControlPanelPosition: (event: React.PointerEvent<HTMLElement>) => void;
+    onPointerDown: (event: React.PointerEvent<HTMLElement>) => void;
+    onPointerUp: (event: React.PointerEvent<HTMLElement>) => void;
 };
 
 const removeDefaultInputButton = "[appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none";
@@ -29,7 +31,9 @@ export function ControlPanel({
     onSetControlPanelPosition,
     onDeleteElement,
     onDelinkElement,
-    contolPanelPosition
+    contolPanelPosition,
+    iscontrolPanelVisible,
+    onUpdateMinimized
 }: ToolBoxProps) {
 
     if (!currentElement) return null;
@@ -50,6 +54,32 @@ export function ControlPanel({
         (element.borderRadius?.radiusBL ?? 0) +
         (element.borderRadius?.radiusBR ?? 0)) / 4;
 
+
+    if (!iscontrolPanelVisible) {
+        return (
+            <button
+                type="button"
+                style={{
+                    top: contolPanelPosition.y!,
+                    right: contolPanelPosition.x!,
+                }}
+                onPointerDown={(event) => onPointerDown(event)}
+                onPointerMove={(event) => onSetControlPanelPosition(event)}
+                onPointerUp={(event) => onPointerUp(event)}
+                onClick={() => {
+                    onUpdateMinimized(true)
+                }}
+                title="Expand Inspector"
+                className="absolute w-10 h-10 rounded-full bg-[#1e1e1e] text-[#0c8ce9] border border-[#383838] shadow-2xl z-50 flex items-center justify-center hover:scale-110 hover:border-[#0c8ce9] transition-all cursor-grab active:cursor-grabbing"
+            >
+                {/* Sliders / Inspector Icon */}
+                <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 11V3M1 14h6M9 8h6M17 16h6" strokeLinecap="round" />
+                </svg>
+            </button>
+        );
+    }
+
     return (
         <div
             style={{
@@ -61,6 +91,31 @@ export function ControlPanel({
             onPointerUp={(event) => onPointerUp(event)}
             className="absolute w-60 bg-[#2c2c2c] text-[#e5e5e5] border-l border-[#383838] hover:cursor-grab shadow-2xl z-50 flex flex-col font-sans text-[11px] select-none "
         >
+
+            <div
+                onPointerDown={e => e.stopPropagation}
+                className="flex items-center justify-between px-3 py-2 bg-[#1e1e1e] border-b border-[#383838] cursor-grab active:cursor-grabbing"
+            >
+                <span className="font-semibold text-[11px] text-[#b3b3b3] uppercase tracking-wider">
+                    Control Panel
+                </span>
+                <button
+                    type="button"
+                    onPointerDown={e => e.stopPropagation()}
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        onUpdateMinimized(false);
+                    }}
+                    title="Minimize Panel"
+                    className="p-1 rounded text-[#808080] hover:text-white hover:bg-[#383838] transition-colors"
+                >
+                    {/* Minimize Icon */}
+                    <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <line x1="5" y1="12" x2="19" y2="12" strokeLinecap="round" />
+                    </svg>
+                </button>
+            </div>
+
             <MediaAndTextInspector element={element} currentElement={currentElement} onUpdateStyle={onUpdateStyle} />
             <PositionControl element={element} props={{ onUpdateStyle, elements }} />
             <LayoutSection element={element} props={{ onUpdateStyle }} />
@@ -515,13 +570,13 @@ export function AppearanceControl({
         );
     };
 
-    {/* Helper functions to parse and build CSS shadow strings */}
-        const parseShadow = (str?: string) => {
+    {/* Helper functions to parse and build CSS shadow strings */ }
+    const parseShadow = (str?: string) => {
         if (!str || str === "none") return { x: 0, y: 2, blur: 4, spread: 0, color: "rgba(0,0,0,0.25)" };
         // Extract numbers and color
         const matches = str.match(/(-?\d+px)/g);
         const colorMatch = str.match(/rgba?\([^)]+\)|#[a-fA-F0-9]{3,8}|[a-z]+/i);
-        
+
         return {
             x: matches?.[0] ? parseInt(matches[0], 10) : 0,
             y: matches?.[1] ? parseInt(matches[1], 10) : 2,
@@ -529,7 +584,7 @@ export function AppearanceControl({
             spread: matches?.[3] ? parseInt(matches[3], 10) : 0,
             color: colorMatch?.[0] || "rgba(0,0,0,0.25)",
         };
-        };
+    };
 
     return (
         <div className="p-3 border-b border-[#383838] flex flex-col gap-3.5 font-sans text-[11px] text-[#b3b3b3] select-none">
@@ -769,246 +824,246 @@ export function AppearanceControl({
 
                 <div className="grid grid-cols-2 gap-2">
                     {/* ========================================================================= */}
-{/* 1. BOX SHADOW CONTROL                                                    */}
-{/* ========================================================================= */}
-<div className="flex flex-col gap-2 bg-[#1e1e1e] p-2 rounded border border-[#383838]">
-  <span className="text-[10px] font-semibold text-white">Box Shadow</span>
-  {(() => {
-    const bs = parseShadow(element.lgSreenStyle?.boxShadow as string);
+                    {/* 1. BOX SHADOW CONTROL                                                    */}
+                    {/* ========================================================================= */}
+                    <div className="flex flex-col gap-2 bg-[#1e1e1e] p-2 rounded border border-[#383838]">
+                        <span className="text-[10px] font-semibold text-white">Box Shadow</span>
+                        {(() => {
+                            const bs = parseShadow(element.lgSreenStyle?.boxShadow as string);
 
-    const updateBoxShadow = (key: string, val: any) => {
-      const updated = { ...bs, [key]: val };
-      const shadowString = `${updated.x}px ${updated.y}px ${updated.blur}px ${updated.spread}px ${updated.color}`;
-      updateProp("boxShadow", shadowString);
-    };
+                            const updateBoxShadow = (key: string, val: any) => {
+                                const updated = { ...bs, [key]: val };
+                                const shadowString = `${updated.x}px ${updated.y}px ${updated.blur}px ${updated.spread}px ${updated.color}`;
+                                updateProp("boxShadow", shadowString);
+                            };
 
-    return (
-      <div className="flex flex-col gap-1.5">
-        <div className="grid grid-cols-2 gap-2">
-          {/* Offset X & Y */}
-          <div className="flex items-center justify-between bg-[#2c2c2c] px-2 py-1 rounded border border-[#383838]">
-            <span className="text-[#808080] text-[9px]">X / Y</span>
-            <div className="flex items-center gap-1">
-              <input
-                type="number"
-                value={bs.x}
-                onChange={(e) => updateBoxShadow("x", Number(e.target.value))}
-                className="w-5 bg-transparent text-white text-right outline-none text-[10px]"
-              />
-              <span className="text-[#808080]">/</span>
-              <input
-                type="number"
-                value={bs.y}
-                onChange={(e) => updateBoxShadow("y", Number(e.target.value))}
-                className="w-5 bg-transparent text-white text-right outline-none text-[10px]"
-              />
-            </div>
-          </div>
+                            return (
+                                <div className="flex flex-col gap-1.5">
+                                    <div className="grid grid-cols-2 gap-2">
+                                        {/* Offset X & Y */}
+                                        <div className="flex items-center justify-between bg-[#2c2c2c] px-2 py-1 rounded border border-[#383838]">
+                                            <span className="text-[#808080] text-[9px]">X / Y</span>
+                                            <div className="flex items-center gap-1">
+                                                <input
+                                                    type="number"
+                                                    value={bs.x}
+                                                    onChange={(e) => updateBoxShadow("x", Number(e.target.value))}
+                                                    className="w-5 bg-transparent text-white text-right outline-none text-[10px]"
+                                                />
+                                                <span className="text-[#808080]">/</span>
+                                                <input
+                                                    type="number"
+                                                    value={bs.y}
+                                                    onChange={(e) => updateBoxShadow("y", Number(e.target.value))}
+                                                    className="w-5 bg-transparent text-white text-right outline-none text-[10px]"
+                                                />
+                                            </div>
+                                        </div>
 
-          {/* Blur & Spread */}
-          <div className="flex items-center justify-between bg-[#2c2c2c] px-2 py-1 rounded border border-[#383838]">
-            <span className="text-[#808080] text-[9px]">Blur/Sprd</span>
-            <div className="flex items-center gap-1">
-              <input
-                type="number"
-                min={0}
-                value={bs.blur}
-                onChange={(e) => updateBoxShadow("blur", Number(e.target.value))}
-                className="w-5 bg-transparent text-white text-right outline-none text-[10px]"
-              />
-              <span className="text-[#808080]">/</span>
-              <input
-                type="number"
-                value={bs.spread}
-                onChange={(e) => updateBoxShadow("spread", Number(e.target.value))}
-                className="w-5 bg-transparent text-white text-right outline-none text-[10px]"
-              />
-            </div>
-          </div>
-        </div>
+                                        {/* Blur & Spread */}
+                                        <div className="flex items-center justify-between bg-[#2c2c2c] px-2 py-1 rounded border border-[#383838]">
+                                            <span className="text-[#808080] text-[9px]">Blur/Sprd</span>
+                                            <div className="flex items-center gap-1">
+                                                <input
+                                                    type="number"
+                                                    min={0}
+                                                    value={bs.blur}
+                                                    onChange={(e) => updateBoxShadow("blur", Number(e.target.value))}
+                                                    className="w-5 bg-transparent text-white text-right outline-none text-[10px]"
+                                                />
+                                                <span className="text-[#808080]">/</span>
+                                                <input
+                                                    type="number"
+                                                    value={bs.spread}
+                                                    onChange={(e) => updateBoxShadow("spread", Number(e.target.value))}
+                                                    className="w-5 bg-transparent text-white text-right outline-none text-[10px]"
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
 
-        {/* Color picker + reset */}
-        <div className="flex items-center justify-between bg-[#2c2c2c] px-2 py-1 rounded border border-[#383838]">
-          <span className="text-[#808080] text-[9px]">Shadow Color</span>
-          <div className="flex items-center gap-2">
-            <HslaColorPicker
-              color={bs.color}
-              onChange={(c) => updateBoxShadow("color", c)}
-            />
-            <button
-              onClick={() => updateProp("boxShadow", "none")}
-              className="text-[9px] text-[#808080] hover:text-white transition-colors"
-            >
-              Clear
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  })()}
-</div>
+                                    {/* Color picker + reset */}
+                                    <div className="flex items-center justify-between bg-[#2c2c2c] px-2 py-1 rounded border border-[#383838]">
+                                        <span className="text-[#808080] text-[9px]">Shadow Color</span>
+                                        <div className="flex items-center gap-2">
+                                            <HslaColorPicker
+                                                color={bs.color}
+                                                onChange={(c) => updateBoxShadow("color", c)}
+                                            />
+                                            <button
+                                                onClick={() => updateProp("boxShadow", "none")}
+                                                className="text-[9px] text-[#808080] hover:text-white transition-colors"
+                                            >
+                                                Clear
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            );
+                        })()}
+                    </div>
 
-{/* ========================================================================= */}
-{/* 2. TEXT SHADOW CONTROL (For Text Elements)                              */}
-{/* ========================================================================= */}
-{isTextTag && (
-  <div className="flex flex-col gap-2 bg-[#1e1e1e] p-2 rounded border border-[#383838]">
-    <span className="text-[10px] font-semibold text-white">Text Shadow</span>
-    {(() => {
-      const ts = parseShadow(element.lgSreenStyle?.textShadow as string);
+                    {/* ========================================================================= */}
+                    {/* 2. TEXT SHADOW CONTROL (For Text Elements)                              */}
+                    {/* ========================================================================= */}
+                    {isTextTag && (
+                        <div className="flex flex-col gap-2 bg-[#1e1e1e] p-2 rounded border border-[#383838]">
+                            <span className="text-[10px] font-semibold text-white">Text Shadow</span>
+                            {(() => {
+                                const ts = parseShadow(element.lgSreenStyle?.textShadow as string);
 
-      const updateTextShadow = (key: string, val: any) => {
-        const updated = { ...ts, [key]: val };
-        // Text shadow has no spread radius in CSS spec
-        const shadowString = `${updated.x}px ${updated.y}px ${updated.blur}px ${updated.color}`;
-        updateProp("textShadow", shadowString);
-      };
+                                const updateTextShadow = (key: string, val: any) => {
+                                    const updated = { ...ts, [key]: val };
+                                    // Text shadow has no spread radius in CSS spec
+                                    const shadowString = `${updated.x}px ${updated.y}px ${updated.blur}px ${updated.color}`;
+                                    updateProp("textShadow", shadowString);
+                                };
 
-      return (
-        <div className="flex flex-col gap-1.5">
-          <div className="grid grid-cols-2 gap-2">
-            {/* Offset X & Y */}
-            <div className="flex items-center justify-between bg-[#2c2c2c] px-2 py-1 rounded border border-[#383838]">
-              <span className="text-[#808080] text-[9px]">X / Y</span>
-              <div className="flex items-center gap-1">
-                <input
-                  type="number"
-                  value={ts.x}
-                  onChange={(e) => updateTextShadow("x", Number(e.target.value))}
-                  className="w-5 bg-transparent text-white text-right outline-none text-[10px]"
-                />
-                <span className="text-[#808080]">/</span>
-                <input
-                  type="number"
-                  value={ts.y}
-                  onChange={(e) => updateTextShadow("y", Number(e.target.value))}
-                  className="w-5 bg-transparent text-white text-right outline-none text-[10px]"
-                />
-              </div>
-            </div>
+                                return (
+                                    <div className="flex flex-col gap-1.5">
+                                        <div className="grid grid-cols-2 gap-2">
+                                            {/* Offset X & Y */}
+                                            <div className="flex items-center justify-between bg-[#2c2c2c] px-2 py-1 rounded border border-[#383838]">
+                                                <span className="text-[#808080] text-[9px]">X / Y</span>
+                                                <div className="flex items-center gap-1">
+                                                    <input
+                                                        type="number"
+                                                        value={ts.x}
+                                                        onChange={(e) => updateTextShadow("x", Number(e.target.value))}
+                                                        className="w-5 bg-transparent text-white text-right outline-none text-[10px]"
+                                                    />
+                                                    <span className="text-[#808080]">/</span>
+                                                    <input
+                                                        type="number"
+                                                        value={ts.y}
+                                                        onChange={(e) => updateTextShadow("y", Number(e.target.value))}
+                                                        className="w-5 bg-transparent text-white text-right outline-none text-[10px]"
+                                                    />
+                                                </div>
+                                            </div>
 
-            {/* Blur */}
-            <div className="flex items-center justify-between bg-[#2c2c2c] px-2 py-1 rounded border border-[#383838]">
-              <span className="text-[#808080] text-[9px]">Blur</span>
-              <input
-                type="number"
-                min={0}
-                value={ts.blur}
-                onChange={(e) => updateTextShadow("blur", Number(e.target.value))}
-                className="w-6 bg-transparent text-white text-right outline-none text-[10px]"
-              />
-            </div>
-          </div>
+                                            {/* Blur */}
+                                            <div className="flex items-center justify-between bg-[#2c2c2c] px-2 py-1 rounded border border-[#383838]">
+                                                <span className="text-[#808080] text-[9px]">Blur</span>
+                                                <input
+                                                    type="number"
+                                                    min={0}
+                                                    value={ts.blur}
+                                                    onChange={(e) => updateTextShadow("blur", Number(e.target.value))}
+                                                    className="w-6 bg-transparent text-white text-right outline-none text-[10px]"
+                                                />
+                                            </div>
+                                        </div>
 
-          {/* Color & Clear */}
-          <div className="flex items-center justify-between bg-[#2c2c2c] px-2 py-1 rounded border border-[#383838]">
-            <span className="text-[#808080] text-[9px]">Color</span>
-            <div className="flex items-center gap-2">
-              <HslaColorPicker
-                color={ts.color}
-                onChange={(c) => updateTextShadow("color", c)}
-              />
-              <button
-                onClick={() => updateProp("textShadow", "none")}
-                className="text-[9px] text-[#808080] hover:text-white transition-colors"
-              >
-                Clear
-              </button>
-            </div>
-          </div>
-        </div>
-      );
-    })()}
-  </div>
-)}
+                                        {/* Color & Clear */}
+                                        <div className="flex items-center justify-between bg-[#2c2c2c] px-2 py-1 rounded border border-[#383838]">
+                                            <span className="text-[#808080] text-[9px]">Color</span>
+                                            <div className="flex items-center gap-2">
+                                                <HslaColorPicker
+                                                    color={ts.color}
+                                                    onChange={(c) => updateTextShadow("color", c)}
+                                                />
+                                                <button
+                                                    onClick={() => updateProp("textShadow", "none")}
+                                                    className="text-[9px] text-[#808080] hover:text-white transition-colors"
+                                                >
+                                                    Clear
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            })()}
+                        </div>
+                    )}
 
-{/* ========================================================================= */}
-{/* 3. FILTER DROP SHADOW (CSS filter: drop-shadow(...))                      */}
-{/* ========================================================================= */}
-<div className="flex flex-col gap-2 bg-[#1e1e1e] p-2 rounded border border-[#383838]">
-  <span className="text-[10px] font-semibold text-white">Filter Drop Shadow</span>
-  {(() => {
-    // Extract drop-shadow(...) out of current filter string if present
-    const currentFilter = (element.lgSreenStyle?.filter as string) || "";
-    const dropMatch = currentFilter.match(/drop-shadow\(([^)]+)\)/);
-    const ds = parseShadow(dropMatch?.[1]);
+                    {/* ========================================================================= */}
+                    {/* 3. FILTER DROP SHADOW (CSS filter: drop-shadow(...))                      */}
+                    {/* ========================================================================= */}
+                    <div className="flex flex-col gap-2 bg-[#1e1e1e] p-2 rounded border border-[#383838]">
+                        <span className="text-[10px] font-semibold text-white">Filter Drop Shadow</span>
+                        {(() => {
+                            // Extract drop-shadow(...) out of current filter string if present
+                            const currentFilter = (element.lgSreenStyle?.filter as string) || "";
+                            const dropMatch = currentFilter.match(/drop-shadow\(([^)]+)\)/);
+                            const ds = parseShadow(dropMatch?.[1]);
 
-    const updateDropShadow = (key: string, val: any) => {
-      const updated = { ...ds, [key]: val };
-      const dropShadowStr = `drop-shadow(${updated.x}px ${updated.y}px ${updated.blur}px ${updated.color})`;
+                            const updateDropShadow = (key: string, val: any) => {
+                                const updated = { ...ds, [key]: val };
+                                const dropShadowStr = `drop-shadow(${updated.x}px ${updated.y}px ${updated.blur}px ${updated.color})`;
 
-      // Replace or append drop-shadow in the filter string without overwriting blur(...)
-      let newFilter = currentFilter;
-      if (currentFilter.includes("drop-shadow")) {
-        newFilter = currentFilter.replace(/drop-shadow\([^)]+\)/, dropShadowStr);
-      } else {
-        newFilter = `${currentFilter} ${dropShadowStr}`.trim();
-      }
+                                // Replace or append drop-shadow in the filter string without overwriting blur(...)
+                                let newFilter = currentFilter;
+                                if (currentFilter.includes("drop-shadow")) {
+                                    newFilter = currentFilter.replace(/drop-shadow\([^)]+\)/, dropShadowStr);
+                                } else {
+                                    newFilter = `${currentFilter} ${dropShadowStr}`.trim();
+                                }
 
-      updateProp("filter", newFilter);
-    };
+                                updateProp("filter", newFilter);
+                            };
 
-    const clearDropShadow = () => {
-      const newFilter = currentFilter.replace(/drop-shadow\([^)]+\)/, "").trim();
-      updateProp("filter", newFilter || "none");
-    };
+                            const clearDropShadow = () => {
+                                const newFilter = currentFilter.replace(/drop-shadow\([^)]+\)/, "").trim();
+                                updateProp("filter", newFilter || "none");
+                            };
 
-    return (
-      <div className="flex flex-col gap-1.5">
-        <div className="grid grid-cols-2 gap-2">
-          {/* Offset X & Y */}
-          <div className="flex items-center justify-between bg-[#2c2c2c] px-2 py-1 rounded border border-[#383838]">
-            <span className="text-[#808080] text-[9px]">X / Y</span>
-            <div className="flex items-center gap-1">
-              <input
-                type="number"
-                value={ds.x}
-                onChange={(e) => updateDropShadow("x", Number(e.target.value))}
-                className="w-5 bg-transparent text-white text-right outline-none text-[10px]"
-              />
-              <span className="text-[#808080]">/</span>
-              <input
-                type="number"
-                value={ds.y}
-                onChange={(e) => updateDropShadow("y", Number(e.target.value))}
-                className="w-5 bg-transparent text-white text-right outline-none text-[10px]"
-              />
-            </div>
-          </div>
+                            return (
+                                <div className="flex flex-col gap-1.5">
+                                    <div className="grid grid-cols-2 gap-2">
+                                        {/* Offset X & Y */}
+                                        <div className="flex items-center justify-between bg-[#2c2c2c] px-2 py-1 rounded border border-[#383838]">
+                                            <span className="text-[#808080] text-[9px]">X / Y</span>
+                                            <div className="flex items-center gap-1">
+                                                <input
+                                                    type="number"
+                                                    value={ds.x}
+                                                    onChange={(e) => updateDropShadow("x", Number(e.target.value))}
+                                                    className="w-5 bg-transparent text-white text-right outline-none text-[10px]"
+                                                />
+                                                <span className="text-[#808080]">/</span>
+                                                <input
+                                                    type="number"
+                                                    value={ds.y}
+                                                    onChange={(e) => updateDropShadow("y", Number(e.target.value))}
+                                                    className="w-5 bg-transparent text-white text-right outline-none text-[10px]"
+                                                />
+                                            </div>
+                                        </div>
 
-          {/* Blur */}
-          <div className="flex items-center justify-between bg-[#2c2c2c] px-2 py-1 rounded border border-[#383838]">
-            <span className="text-[#808080] text-[9px]">Blur</span>
-            <input
-              type="number"
-              min={0}
-              value={ds.blur}
-              onChange={(e) => updateDropShadow("blur", Number(e.target.value))}
-              className="w-6 bg-transparent text-white text-right outline-none text-[10px]"
-            />
-          </div>
-        </div>
+                                        {/* Blur */}
+                                        <div className="flex items-center justify-between bg-[#2c2c2c] px-2 py-1 rounded border border-[#383838]">
+                                            <span className="text-[#808080] text-[9px]">Blur</span>
+                                            <input
+                                                type="number"
+                                                min={0}
+                                                value={ds.blur}
+                                                onChange={(e) => updateDropShadow("blur", Number(e.target.value))}
+                                                className="w-6 bg-transparent text-white text-right outline-none text-[10px]"
+                                            />
+                                        </div>
+                                    </div>
 
-        {/* Color & Clear */}
-        <div className="flex items-center justify-between bg-[#2c2c2c] px-2 py-1 rounded border border-[#383838]">
-          <span className="text-[#808080] text-[9px]">Color</span>
-          <div className="flex items-center gap-2">
-            <HslaColorPicker
-              color={ds.color}
-              onChange={(c) => updateDropShadow("color", c)}
-            />
-            <button
-              onClick={clearDropShadow}
-              className="text-[9px] text-[#808080] hover:text-white transition-colors"
-            >
-              Clear
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  })()}
-</div>
+                                    {/* Color & Clear */}
+                                    <div className="flex items-center justify-between bg-[#2c2c2c] px-2 py-1 rounded border border-[#383838]">
+                                        <span className="text-[#808080] text-[9px]">Color</span>
+                                        <div className="flex items-center gap-2">
+                                            <HslaColorPicker
+                                                color={ds.color}
+                                                onChange={(c) => updateDropShadow("color", c)}
+                                            />
+                                            <button
+                                                onClick={clearDropShadow}
+                                                className="text-[9px] text-[#808080] hover:text-white transition-colors"
+                                            >
+                                                Clear
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            );
+                        })()}
+                    </div>
 
                     {/* Image/Element Blur Filter */}
                     <div className="flex items-center justify-between bg-[#2c2c2c] px-2 py-1 rounded border border-[#383838]">

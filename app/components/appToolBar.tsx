@@ -6,10 +6,12 @@ export type TextSubOption = "heading" | "subheading" | "paragraph";
 
 type ToolbarProps = {
   activeTool: Modes;
+  isToolBarVisible:Boolean;
+  onUpdateToolBarVisibility: (value:Boolean)=>void 
   onSelectTool: (tool: Modes, extraData?: { textType?: TextSubOption; aiPrompt?: string }) => void;
 };
 
-export function Toolbar({ activeTool, onSelectTool }: ToolbarProps) {
+export function Toolbar({ activeTool, onSelectTool, isToolBarVisible,onUpdateToolBarVisibility }: ToolbarProps) {
   const [hoveredTool, setHoveredTool] = useState<Modes | null>(null);
   const [showAiInput, setShowAiInput] = useState(false);
   const [aiPrompt, setAiPrompt] = useState("");
@@ -99,8 +101,43 @@ export function Toolbar({ activeTool, onSelectTool }: ToolbarProps) {
     setAiPrompt("");
   };
 
+
+  if (!isToolBarVisible) {
+    return (
+      <div className="fixed left-2 top-1/2 -translate-y-1/2 z-50">
+        <button
+          type="button"
+          onClick={() => onUpdateToolBarVisibility(true)}
+          title="Expand Toolbar"
+          className="w-10 h-10 rounded-full bg-slate-900/90 backdrop-blur-md border border-slate-700/80 shadow-2xl flex items-center justify-center text-slate-300 hover:text-white hover:border-slate-500 hover:scale-105 transition-all"
+        >
+          {/* Chevron Right / Expand Icon */}
+          <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M13 17l5-5-5-5M6 17l5-5-5-5" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </button>
+      </div>
+    );
+  }
+
+  
+
+
   return (
     <div className="bg-slate-900/90 fixed left-2 top-1/2 -translate-y-1/2 z-50 backdrop-blur-md border border-slate-700/80 rounded-xl shadow-2xl p-1.5 flex flex-col gap-1">
+      <button
+        type="button"
+        onClick={() => onUpdateToolBarVisibility(false)}
+        title="Minimize Toolbar"
+        className="w-full py-1 mb-0.5 rounded-lg flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+      >
+        {/* Chevron Left / Minimize Icon */}
+        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <path d="M11 17l-5-5 5-5M18 17l-5-5 5-5" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </button>
+
+      <div className="w-full h-[1px] bg-slate-800 mb-0.5" />
       {elementsList.map((item) => {
         const isTextTool = item.type === Modes.TEXT;
         const isAiTool = item.type === Modes.AI;

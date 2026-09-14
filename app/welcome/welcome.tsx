@@ -28,6 +28,8 @@ export function Canvas() {
   const zIndexUpdated = useRef<boolean>(false);
   
   const [controlPanelPosition, setControlPanelPosition] = useState<Position>({ x:0, y:0 }) 
+  const [iscontrolPanelVisible, setIscontrolPanelVisible] = useState<Boolean>(true) 
+  const [isToolBarVisible, setIsToolBarVisible] = useState<Boolean>(true) 
   const isControlPanelSelected = useRef<boolean>(false);
   const currentSelectedKnob = useRef<Knobs | null>(null);
   
@@ -35,6 +37,8 @@ export function Canvas() {
     selectedTarget: lastSelected,
     setElements,
   });
+
+  console.log(iscontrolPanelVisible)
 
   const handleDelinkeElement = (e: React.MouseEvent<HTMLElement>) => {
     e.stopPropagation();
@@ -99,8 +103,6 @@ function parentYToCanvas(childY: number, parentY: number): number {
 }
   
   
-  
-
   return (
     <div
       id="canvas-container"
@@ -116,6 +118,8 @@ function parentYToCanvas(childY: number, parentY: number): number {
         lastSelected.current && 
         <ControlPanel
           contolPanelPosition={controlPanelPosition}
+          iscontrolPanelVisible={iscontrolPanelVisible}
+          onUpdateMinimized={(value)=> setIscontrolPanelVisible(value)}
           onPointerDown={(event)=> HandleControlPanelPointerDown({event, isControlPanelSelected, pointerOffset, setControlPanelPosition, currentSelectedKnob,elements, lastSelected, setElements })}
           onPointerUp={(event)=> HandleControlPanelPointerUp({event, isControlPanelSelected,pointerOffset, setControlPanelPosition, currentSelectedKnob, elements, lastSelected})}
           onSetControlPanelPosition={(event)=> HandlePointerMove({event,isControlPanelSelected, pointerOffset, setControlPanelPosition, currentSelectedKnob, lastSelected, elements, setElements})}
@@ -129,6 +133,8 @@ function parentYToCanvas(childY: number, parentY: number): number {
 
       <Toolbar
         activeTool={activeTool}
+        isToolBarVisible={isToolBarVisible}
+        onUpdateToolBarVisibility={(value) => setIsToolBarVisible(value)}
         onSelectTool={(tool) => setActiveTool(tool)}
       />
 

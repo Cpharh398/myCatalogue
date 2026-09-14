@@ -98,7 +98,7 @@ export function ParentElementPreview({ parentElement }: ParentPreviewProps) {
                 //   lineHeight: "1.2",
                 //   textAlign: parentElement.textAlign as any || "center",
                 // }}
-                className="line-clamp-2 overflow-hidden text-ellipsis break-words font-sans select-none pointer-events-none max-w-full"
+                className="line-clamp-2 overflow-hidden text-ellipsis wrap-break-word font-sans select-none pointer-events-none max-w-full"
                 title={parentElement.content || "Empty Text"}
               >
                 {parentElement.content || (
