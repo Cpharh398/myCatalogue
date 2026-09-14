@@ -1,14 +1,8 @@
 import type { ElementAttr, Position } from "~/util/types";
 
-export const updateElementStyle = (id: string, updater: (prev: ElementAttr) => Partial<ElementAttr>, setElements: (value: React.SetStateAction<Record<string, ElementAttr>>) => void) => {
+export const updateElementStyle = (id: string, updater: (element: ElementAttr) => ElementAttr, setElements: (value: React.SetStateAction<Record<string, ElementAttr>>) => void) => {
     if(!id)return;
-    setElements!((prev) => ({
-        ...prev,
-        [id]: {
-            ...prev[id],
-            ...updater(prev[id]),
-        },
-    }));
+    setElements(prev => updateNestedElement(prev, id, updater));
 };
 
 
@@ -125,6 +119,8 @@ export const getRezingCursorStyle = (resizePoint: string) => {
 
 export const findInTree = (tree: Record<string, ElementAttr> | undefined,id: string): ElementAttr | undefined => {
   if(!tree) return;
+    // console.log(tree)
+    // console.log(id)
       for (const [key, val] of Object.entries(tree)) {
         if (key === id) return val;
         if (val.canvasChildren) {

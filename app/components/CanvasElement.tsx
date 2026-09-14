@@ -12,16 +12,13 @@ type ElementProps = {
   selectedElement: string;
   element: ElementAttr;
   elements: Record<string, ElementAttr>
-  onUpdateStyle: (
-    updater: (prev: ElementAttr) => Partial<ElementAttr>
-  ) => void;
   setElements: React.Dispatch<React.SetStateAction<Record<string, ElementAttr>>>;
   selectedTarget: React.RefObject<string | null>;
   guide: AlignmentGuide[]
   setGuide: React.Dispatch<React.SetStateAction<AlignmentGuide[]>>
 };
 
-export function CanvasElement({ id, element, guide, setGuide, onUpdateStyle, setElements, selectedElement, selectedTarget }: ElementProps) {
+export function CanvasElement({ id, element, guide, setGuide, setElements, selectedElement, selectedTarget }: ElementProps) {
 
 const getBackgroundStyle = () => {
   if (element.useGradient) {
@@ -120,7 +117,6 @@ export function CanvasChildren({ children, setElements, selectedElement, selecte
         selectedTarget={selectedTarget}
         selectedElement={selectedElement}
         element={element}
-        onUpdateStyle={(updater) => updateElementStyle(id, updater, setElements!)}
       />
     ));
   };

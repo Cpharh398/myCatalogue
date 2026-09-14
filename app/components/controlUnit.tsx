@@ -1,5 +1,5 @@
 import React, { useState, useRef, type SetStateAction } from "react";
-import { findInTree, removeElementFromTree } from "~/features/util";
+import { findInTree, removeElementFromTree, updateNestedElement } from "~/features/util";
 import type { BorderRadius, CurrentState, ElementAttr, Position } from "~/util/types";
 import { Link, Trash } from "lucide-react"
 import { AlignStartVertical, AlignEndVertical, AlignCenterHorizontal, AlignStartHorizontal, AlignCenterVertical, AlignEndHorizontal, Angle } from "lucide-react"
@@ -8,7 +8,7 @@ import { ParentElementPreview } from "./elementPreview";
 type ToolBoxProps = {
     currentElement: string | null;
     elements: Record<string, ElementAttr>;
-    onUpdateStyle: (updater: (prev: ElementAttr) => Partial<ElementAttr>) => void;
+    onUpdateStyle: React.Dispatch<React.SetStateAction<Record<string, ElementAttr>>>;
     onDeleteElement?: () => void;
     onDelinkElement?: (e: React.MouseEvent<HTMLElement>) => void;
     contolPanelPosition: Position;
@@ -60,12 +60,12 @@ export function ControlPanel({
             onPointerUp={(event) => onPointerUp(event)}
             className="absolute w-60 bg-[#2c2c2c] text-[#e5e5e5] border-l border-[#383838] hover:cursor-grab shadow-2xl z-50 flex flex-col font-sans text-[11px] select-none overflow-y-auto"
         >
-            <MediaAndTextInspector element={element} onUpdateStyle={onUpdateStyle} />
+            <MediaAndTextInspector element={element} currentElement={currentElement} onUpdateStyle={onUpdateStyle} />
             <PositionControl element={element} props={{ onUpdateStyle, elements }}  />
             <LayoutSection element={element} props={{ onUpdateStyle }} />
             <AppearanceControl setShowIndividualRadius={setShowIndividualRadius} currentUniformRadius={currentUniformRadius} element={element} showIndividualRadius={showIndividualRadius} onUpdateStyle={onUpdateStyle} />
-            <FillControl element={element} onUpdateStyle={onUpdateStyle} />
-            <StrokeControl element={element} onUpdateStyle={onUpdateStyle} />
+            <FillControl element={element} currentElement={currentElement} onUpdateStyle={onUpdateStyle} />
+            <StrokeControl element={element} onUpdateStyle={onUpdateStyle}  currentElement={currentElement}/>
             <LinkParentControl element={element}  props={{ onDelinkElement, elements }}/>
             <Actions onDeleteElement={onDeleteElement} />
         </div>
@@ -94,7 +94,7 @@ export function Actions({ onDeleteElement }: Partial<ToolBoxProps>) {
 }
 
 
-export function StrokeControl({ element, onUpdateStyle }: { element: ElementAttr; onUpdateStyle: (updater: (prev: ElementAttr) => Partial<ElementAttr>) => void }) {
+export function StrokeControl({ element, onUpdateStyle, currentElement }: { element: ElementAttr; onUpdateStyle: React.Dispatch<React.SetStateAction<Record<string, ElementAttr>>>, currentElement:string }) {
     return (
         <div className="p-3 border-b border-[#383838] flex flex-col gap-2.5">
             <span className="font-semibold text-[#b3b3b3]">Stroke</span>
@@ -104,7 +104,18 @@ export function StrokeControl({ element, onUpdateStyle }: { element: ElementAttr
                     <input
                         type="color"
                         value={element.borderColor || "#000000"}
-                        onChange={(e) => onUpdateStyle(() => ({ borderColor: e.target.value }))}
+                        onChange={(e) =>{
+                             onUpdateStyle!(prev =>{
+                                return updateNestedElement(prev, currentElement!, (el)=>{
+                                       return  {
+                                        ...el,
+                                         borderColor: e.target.value
+                                        
+                                    }
+
+                                })
+                            })
+                        }}
                         className="w-5 h-5 rounded cursor-pointer border-none bg-transparent"
                     />
                     <span className="uppercase text-white font-mono">
@@ -123,7 +134,16 @@ export function StrokeControl({ element, onUpdateStyle }: { element: ElementAttr
                         onPointerDown={(e) => e.stopPropagation()}
                         onChange={(e) => {
                             e.preventDefault()
-                            onUpdateStyle(() => ({ borderWidth: Number(e.target.value) }))
+                             onUpdateStyle!(prev =>{
+                                return updateNestedElement(prev, currentElement!, (el)=>{
+                                       return  {
+                                        ...el,
+                                        borderWidth: Number(e.target.value)
+                                        
+                                    }
+
+                                })
+                            })
                         }
                         }
                         className="w-8 bg-[#2c2c2c] text-white text-right rounded px-1 border border-[#383838]"
@@ -138,7 +158,16 @@ export function StrokeControl({ element, onUpdateStyle }: { element: ElementAttr
                 onPointerDown={(e) => e.stopPropagation()}
                 onChange={(e) => {
                     e.stopPropagation();
-                    onUpdateStyle(() => ({ borderStyle: e.target.value }));
+                     onUpdateStyle!(prev =>{
+                                return updateNestedElement(prev, currentElement!, (el)=>{
+                                       return  {
+                                        ...el,
+                                        borderStyle: e.target.value
+                                        
+                                    }
+
+                                })
+                            })
                 }}
                 className="bg-[#1e1e1e] border border-[#383838] text-white rounded p-1 outline-none text-[10px]"
             >
@@ -151,7 +180,7 @@ export function StrokeControl({ element, onUpdateStyle }: { element: ElementAttr
     )
 }
 
-export function FillControl({ element, onUpdateStyle }: { element: ElementAttr; onUpdateStyle: (updater: (prev: ElementAttr) => Partial<ElementAttr>) => void }) {
+export function FillControl({ element, onUpdateStyle, currentElement }: { element: ElementAttr; onUpdateStyle: React.Dispatch<React.SetStateAction<Record<string, ElementAttr>>>, currentElement:string }) {
     return (
         <div className="p-3 border-b border-[#383838] flex flex-col gap-2.5">
             <div className="flex items-center justify-between">
@@ -161,7 +190,19 @@ export function FillControl({ element, onUpdateStyle }: { element: ElementAttr; 
                     <input
                         type="checkbox"
                         checked={element.useGradient || false}
-                        onChange={(e) => onUpdateStyle(() => ({ useGradient: e.target.checked }))}
+                        onChange={(e) => {
+                                onUpdateStyle!(prev =>{
+                                return updateNestedElement(prev, currentElement!, (el)=>{
+                                       return  {
+                                        ...el,
+                                        useGradient: e.target.checked
+                                        
+                                    }
+
+                                })
+                            })
+
+                            }}
                         className="accent-[#0c8ce9]"
                     />
                     Gradient
@@ -174,7 +215,19 @@ export function FillControl({ element, onUpdateStyle }: { element: ElementAttr; 
                         <input
                             type="color"
                             value={element.backgroundColor || "#ffffff"}
-                            onChange={(e) => onUpdateStyle(() => ({ backgroundColor: e.target.value }))}
+                            onChange={(e) => {
+                                onUpdateStyle!(prev =>{
+                                return updateNestedElement(prev, currentElement!, (el)=>{
+                                       return  {
+                                        ...el,
+                                        backgroundColor: e.target.value
+                                        
+                                    }
+
+                                })
+                            })
+
+                            }}
                             className="w-5 h-5 rounded cursor-pointer border-none bg-transparent"
                         />
                         <span className="uppercase text-white font-mono">
@@ -397,7 +450,7 @@ export function LinkParentControl({ element, props }: { element: ElementAttr, pr
         </div>
     );
 }
-export function AppearanceControl({ currentUniformRadius, showIndividualRadius, element, onUpdateStyle, setShowIndividualRadius }: { currentUniformRadius: number, showIndividualRadius: boolean, element: ElementAttr, onUpdateStyle: (updater: (prev: ElementAttr) => Partial<ElementAttr>) => void; setShowIndividualRadius: React.Dispatch<React.SetStateAction<boolean>> }) {
+export function AppearanceControl({ currentUniformRadius, showIndividualRadius, element, onUpdateStyle, setShowIndividualRadius }: { currentUniformRadius: number, showIndividualRadius: boolean, element: ElementAttr, onUpdateStyle: React.Dispatch<React.SetStateAction<Record<string, ElementAttr>>>, setShowIndividualRadius: React.Dispatch<React.SetStateAction<boolean>> }) {
 
 
     return (
@@ -518,79 +571,6 @@ export function PositionControl({ props, element }: { props: Partial<ToolBoxProp
     
     const PIXEL_SIZE = 16;
 
-    const handleEdgeAlign = (e: React.MouseEvent<HTMLButtonElement, MouseEvent>) => {
-        e.stopPropagation();
-        const target = e.currentTarget;
-        const alignDirection = target.dataset.align;
-
-        props.onUpdateStyle!((prev) => {
-            const isChildElement = prev.currentStateInTree?.isChildElement;
-            const elementWidth = prev.size?.width ?? 0; 
-            const elementHeight = prev.size?.height ?? 0;
-
-            let containerWidth = 0;
-            let containerHeight = 0;
-
-            if (isChildElement) {
-                const parentElementID = prev.currentStateInTree?.parentElementID ?? "";
-                const parentElement = findInTree(props.elements!, parentElementID);
-                containerWidth = parentElement?.size?.width ?? 0;
-                containerHeight = parentElement?.size?.height ?? 0;
-            } else {
-                const canvasDom = document.getElementById("canvas-container");
-                const pixelWidth = canvasDom?.clientWidth ?? window.innerWidth;
-                const pixelHeight = canvasDom?.clientHeight ?? window.innerHeight;
-                containerWidth = pixelWidth / PIXEL_SIZE;
-                containerHeight = pixelHeight / PIXEL_SIZE;
-            }
-
-            return {
-                position: {
-                    ...prev.position,
-                    x: alignDirection === "left" ? 0 : alignDirection === "right" ? containerWidth - elementWidth : prev.position.x,    
-                    y: alignDirection === "top" ? 0 : alignDirection === "bottom" ? containerHeight - elementHeight : prev.position.y
-                }
-            };
-        });
-    }
-
-    const handleCenterElement = (e:  React.MouseEvent<HTMLButtonElement, MouseEvent>) => { 
-        e.stopPropagation();
-        const target = e.currentTarget;
-        const centerLine = target.dataset.center;
-        
-        props.onUpdateStyle!((prev) => {
-            const isChildElement = prev.currentStateInTree?.isChildElement;
-            const elementWidth = prev.size?.width ?? 0; 
-            const elementHeight = prev.size?.height ?? 0; 
-
-            let containerWidth = 0;
-            let containerHeight = 0;
-
-            if (isChildElement) {
-                const parentElementID = prev.currentStateInTree?.parentElementID ?? "";
-                const parentElement = findInTree(props.elements!, parentElementID);
-                containerWidth = parentElement?.size?.width ?? 0;
-                containerHeight = parentElement?.size?.height ?? 0;
-            } else {
-                const canvasDom = document.getElementById("canvas-container");
-                const pixelWidth = canvasDom?.clientWidth ?? window.innerWidth;
-                const pixelHeight = canvasDom?.clientHeight ?? window.innerHeight;
-                containerWidth = pixelWidth / PIXEL_SIZE;
-                containerHeight = pixelHeight / PIXEL_SIZE;
-            }
-            const newX = (containerWidth - elementWidth) / 2;
-            const newY = (containerHeight - elementHeight) / 2;
-
-            return {
-                position: {
-                    ...prev.position,
-                    x: centerLine === "horizontal" ? newX : prev.position.x,
-                    y: centerLine === "vertical" ? newY : prev.position.y
-                }
-            };
-        });
-    }
 
 
 
@@ -603,15 +583,15 @@ export function PositionControl({ props, element }: { props: Partial<ToolBoxProp
                 <button
                     data-align="left"
                     title="Align Left"
-                    onClick={handleEdgeAlign}
+                    // onClick={handleEdgeAlign}
                     className="h-6 flex items-center justify-center hover:bg-[#383838] rounded text-[#b3b3b3] hover:text-white"
                 >
                     <AlignStartVertical size={20} />
                 </button>
 
                 <button
-                    onClick={handleCenterElement}
-                    data-center="horizontal"
+                    // onPointerDown={(e) => e.stopPropagation()}
+                    data-align="horizontal"
                     title="Align Horizontal Centers"
                     className="h-6 flex items-center justify-center hover:bg-[#383838] rounded text-[#b3b3b3] hover:text-white"
                 >
@@ -620,29 +600,31 @@ export function PositionControl({ props, element }: { props: Partial<ToolBoxProp
                 <button
                     data-align="right"
                     title="Align Right"
-                    onClick={handleEdgeAlign}
                     className="h-6 flex items-center justify-center hover:bg-[#383838] rounded text-[#b3b3b3] hover:text-white"
-                >
-                    <AlignEndVertical size={20} />
+                    >
+                    <AlignEndVertical data-align="right" size={20} />
                 </button>
                 <button
-                    onClick={handleEdgeAlign}
+                    // onPointerDown={(e) => e.stopPropagation()}
+                    // onClick={handleEdgeAlign}
                     data-align="top"
                     title="Align Top"
                     className="h-6 flex items-center justify-center hover:bg-[#383838] rounded text-[#b3b3b3] hover:text-white"
-                >
+                    >
                     <AlignStartHorizontal size={20} />
                 </button>
                 <button
-                    onClick={handleCenterElement}
-                    data-center="vertical"
+                    // onPointerDown={(e) => e.stopPropagation()}
+                    // onClick={handleCenterElement}
+                    data-align="vertical"
                     title="Align Vertical Centers"
                     className="h-6 flex items-center justify-center hover:bg-[#383838] rounded text-[#b3b3b3] hover:text-white"
-                >
+                    >
                     <AlignCenterVertical size={20} />
                 </button>
                 <button
-                    onClick={handleEdgeAlign}
+                    // onPointerDown={(e) => e.stopPropagation()}
+                    // onClick={handleEdgeAlign}
                     data-align="bottom"
                     title="Align Bottom"
                     className="h-6 flex items-center justify-center hover:bg-[#383838] rounded text-[#b3b3b3] hover:text-white"
@@ -711,12 +693,19 @@ export function LayoutSection({ element, props }: LayoutSectionProps) {
                         type="number"
                         value={Math.round((element.size?.width ?? 1) * 16)}
                         onChange={(e) =>
-                            props.onUpdateStyle!((prev) => ({
-                                size: {
-                                    width: Number(e.target.value) / 16,
-                                    height: prev.size?.height ?? 1,
-                                },
-                            }))
+                            props.onUpdateStyle!(prev =>{
+                                return updateNestedElement(prev, props.currentElement!, (el)=>{
+                                       return  {
+                                        ...el,
+                                        size: {
+                                            width: Number(e.target.value) / 16,
+                                            height: el.size?.height ?? 1,
+                                        },
+                                    }
+
+                                })
+                            })
+                          
                         }
                         className={`bg-transparent w-full outline-none text-white text-right ${removeDefaultInputButton}`}
                     />
@@ -726,13 +715,22 @@ export function LayoutSection({ element, props }: LayoutSectionProps) {
                     <input
                         type="number"
                         value={Math.round((element.size?.height ?? 1) * 16)}
+                        
                         onChange={(e) =>
-                            props.onUpdateStyle!((prev) => ({
-                                size: {
-                                    width: prev.size?.width ?? 1,
-                                    height: Number(e.target.value) / 16,
-                                },
-                            }))
+                             props.onUpdateStyle!(prev =>{
+                                return updateNestedElement(prev, props.currentElement!, (el)=>{
+                                       return  {
+                                        ...el,
+                                        size: {
+                                            width: el.size?.width ?? 1,
+                                            height: Number(e.target.value) / 16,
+                                            
+                                        },
+                                    }
+
+                                })
+                            })
+                          
                         }
                         className={`bg-transparent w-full outline-none text-white text-right ${removeDefaultInputButton}`}
                     />
@@ -746,10 +744,11 @@ export function LayoutSection({ element, props }: LayoutSectionProps) {
 
 type ContentInspectorProps = {
   element: ElementAttr;
-  onUpdateStyle: (updater: (prev: ElementAttr) => Partial<ElementAttr>) => void;
+  currentElement:string
+  onUpdateStyle: React.Dispatch<React.SetStateAction<Record<string, ElementAttr>>>;
 };
 
-export function MediaAndTextInspector({ element, onUpdateStyle }: ContentInspectorProps) {
+export function MediaAndTextInspector({ element, onUpdateStyle, currentElement }: ContentInspectorProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const tag = (element.elementTag || "div").toLowerCase();
 
@@ -770,7 +769,7 @@ export function MediaAndTextInspector({ element, onUpdateStyle }: ContentInspect
     if (!file) return;
 
     const fileUrl = URL.createObjectURL(file);
-    onUpdateStyle(() => ({ content: fileUrl }));
+    onUpdateStyle((prev) => updateNestedElement(prev, currentElement, (el)=> ({...el, content:fileUrl } ) ) )
   };
 
   return (
@@ -794,7 +793,16 @@ export function MediaAndTextInspector({ element, onUpdateStyle }: ContentInspect
             value={element.content || ""}
             onChange={(e) => {
               e.stopPropagation();
-              onUpdateStyle(() => ({ content: e.target.value }));
+              onUpdateStyle!(prev =>{
+                                return updateNestedElement(prev, currentElement!, (el)=>{
+                                       return  {
+                                        ...el,
+                                        content: e.target.value
+                                       
+                                    }
+
+                                })
+                            })
             }}
             onClick={(e) => e.stopPropagation()}
             onPointerDown={(e) => e.stopPropagation()}
@@ -883,7 +891,16 @@ export function MediaAndTextInspector({ element, onUpdateStyle }: ContentInspect
               value={element.content || ""}
               onChange={(e) => {
                 e.stopPropagation();
-                onUpdateStyle(() => ({ content: e.target.value }));
+                    onUpdateStyle!(prev =>{
+                                return updateNestedElement(prev, currentElement!, (el)=>{
+                                       return  {
+                                        ...el,
+                                        content: e.target.value
+                                       
+                                    }
+
+                                })
+                            })
               }}
               onClick={(e) => e.stopPropagation()}
               onPointerDown={(e) => e.stopPropagation()}

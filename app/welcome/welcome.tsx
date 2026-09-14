@@ -36,48 +36,8 @@ export function Canvas() {
     setElements,
   });
 
-//   function handleDelinkeElement(
-//   elements: Record<string, ElementAttr>,
-//   childId: string
-// ): Record<string, ElementAttr> {
-//   const childElement = elements[childId];
-//   if (!childElement || !childElement.currentStateInTree?.isChildElement) {
-//     return elements; // Nothing to delink if it's already at the root level
-//   }
-
-//   // 1. Calculate the absolute top-left position relative to the main canvas
-
-//   // 2. Clone state and update the delinked element
-//   const updatedElements = { ...elements };
-
-//   updatedElements[childId] = {
-//     ...childElement,
-//     // Apply calculated root-canvas coordinates
-//     position: absoluteCanvasPosition,
-//     // Update tree metadata so it is no longer marked as a child
-//     currentStateInTree: {
-//       ...childElement.currentStateInTree,
-//       isChildElement: false,
-//       parentElementID: null,
-//     },
-//   };
-
-//   // 3. Remove childId from its parent's children array (if maintained)
-//   const parentId = childElement.currentStateInTree.parentElementID;
-//   if (parentId && updatedElements[parentId]) {
-//     const parent = updatedElements[parentId];
-//     updatedElements[parentId] = {
-//       ...parent,
-//       childrenIDs: parent.childrenIDs?.filter((id) => id !== childId) ?? [],
-//     };
-//   }
-
-//   return updatedElements;
-// }
-
   const handleDelinkeElement = (e: React.MouseEvent<HTMLElement>) => {
     e.stopPropagation();
-    console.log("Last Selected", lastSelected.current)
 
     setElements((prev)=>{
        
@@ -97,7 +57,6 @@ export function Canvas() {
           isChildElement:false,
           parentElementID:null
         }
-        
       }
 
       nextState = { ...updatedElements, [lastSelected.current!]: currentElement  };
@@ -105,10 +64,7 @@ export function Canvas() {
     });
   }
 
-/**
- * Recursively calculates the total offset of an element relative to the root canvas.
- * It sums the element's relative X/Y position with all its ancestor parents' positions.
- */
+
  function getCanvasRelativePosition(
   elements: Record<string, ElementAttr>,
   currentElement:ElementAttr | null
@@ -119,11 +75,9 @@ export function Canvas() {
   const currentX = currentElement.position?.x ?? 0;
   const currentY = currentElement.position?.y ?? 0;
 
-  // Check if this element is nested inside a parent
   const isChild = currentElement.currentStateInTree?.isChildElement;
   const parentId = currentElement.currentStateInTree?.parentElementID;
 
-  // If it's a child and has a parent ID, recursively fetch parent's offset
   if (isChild && parentId) {
     const parentElement = findInTree(elements, parentId) ?? null;
     const parentOffset = getCanvasRelativePosition(elements, parentElement);
@@ -133,11 +87,9 @@ export function Canvas() {
     };
   }
 
-  // If it's already a root element, return its direct coordinates
   return { x: currentX, y: currentY };
 }
 
-// Helper to sum coordinates cleanly
 function parentXToCanvas(childX: number, parentX: number): number {
   return parentX + childX;
 }
@@ -169,7 +121,7 @@ function parentYToCanvas(childY: number, parentY: number): number {
           onSetControlPanelPosition={(event)=> HandlePointerMove({event,isControlPanelSelected, pointerOffset, setControlPanelPosition, currentSelectedKnob, lastSelected, elements, setElements})}
           currentElement={lastSelected.current}
           elements={elements}
-          onUpdateStyle={(updater) => updateElementStyle(lastSelected.current!, updater, setElements)}
+          onUpdateStyle={setElements}
           onDeleteElement={() => setElements((prev) => removeElementFromTree({ elements: prev, targetId:lastSelected.current! }))}
           onDelinkElement={handleDelinkeElement} />
       }
@@ -190,7 +142,6 @@ function parentYToCanvas(childY: number, parentY: number): number {
           elements={elements}
           selectedElement={selectedTarget.current!}
           element={element}
-          onUpdateStyle={(updater) => updateElementStyle(id, updater, setElements)}
           setElements={setElements}
         />
       ))}

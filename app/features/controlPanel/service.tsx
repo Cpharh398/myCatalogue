@@ -55,13 +55,126 @@ export const setCurrentSelectedKnob = (controKnob: string | undefined, props: Pa
     };
 }
 
- export const HandleControlPanelPointerDown = ({event, isControlPanelSelected, pointerOffset, currentSelectedKnob, lastSelected}:HandlersProps)=>{
+
+
+
+    const handleEdgeAlign = ({alignDirection, props}:{alignDirection:string, props: Partial<HandlersProps>}) => {
+
+      props.setElements
+
+        props.setElements!(prev => {
+            return updateNestedElement(prev, props.lastSelected?.current!, (el) =>{
+                
+                    const isChildElement = el.currentStateInTree?.isChildElement;
+                    const elementWidth = el.size?.width ?? 0; 
+                    const elementHeight = el.size?.height ?? 0;
+        
+                    let containerWidth = 0;
+                    let containerHeight = 0;
+        
+                    if (isChildElement) {
+                        const parentElementID = el.currentStateInTree?.parentElementID ?? "";
+                        const parentElement = findInTree(prev, parentElementID);
+                        // console.log("element found",findInTree(prev, parentElementID) )
+                        containerWidth = parentElement?.size?.width ?? 0;
+                        containerHeight = parentElement?.size?.height ?? 0;
+                    } else {
+                        const canvasDom = document.getElementById("canvas-container");
+                        const pixelWidth = canvasDom?.clientWidth ?? window.innerWidth;
+                        const pixelHeight = canvasDom?.clientHeight ?? window.innerHeight;
+                        containerWidth = pixelWidth / 16;
+                        containerHeight = pixelHeight / 16;
+                    }
+        
+                    return {
+                        ...el,
+                        position: {
+                            ...prev.position,
+                            x: alignDirection === "left" ? 0 : alignDirection === "right" ? containerWidth - elementWidth : el.position.x,    
+                            y: alignDirection === "top" ? 0 : alignDirection === "bottom" ? containerHeight - elementHeight : el.position.y
+                        }
+                    };
+            })
+
+            
+
+        })
+
+    }
+
+    const handleCenterAlign = ({alignDirection, props}:{alignDirection:string, props: Partial<HandlersProps>}) => { 
+        
+        props.setElements!((prev) => {
+            return updateNestedElement(prev, props.lastSelected?.current!, (el)=>{
+
+                const isChildElement = el.currentStateInTree?.isChildElement;
+                const elementWidth = el.size?.width ?? 0; 
+                const elementHeight = el.size?.height ?? 0; 
+    
+                let containerWidth = 0;
+                let containerHeight = 0;
+    
+                if (isChildElement) {
+                    const parentElementID = el.currentStateInTree?.parentElementID ?? "";
+                    const parentElement = findInTree(prev, parentElementID);
+                    containerWidth = parentElement?.size?.width ?? 0;
+                    containerHeight = parentElement?.size?.height ?? 0;
+                } else {
+                    const canvasDom = document.getElementById("canvas-container");
+                    const pixelWidth = canvasDom?.clientWidth ?? window.innerWidth;
+                    const pixelHeight = canvasDom?.clientHeight ?? window.innerHeight;
+                    containerWidth = pixelWidth / 16;
+                    containerHeight = pixelHeight / 16;
+                }
+                const newX = (containerWidth - elementWidth) / 2;
+                const newY = (containerHeight - elementHeight) / 2;
+    
+                return {
+                    ...el,
+                    position: {
+                        ...el.position,
+                        x: alignDirection === "horizontal" ? newX : el.position.x,
+                        y: alignDirection === "vertical" ? newY : el.position.y
+                    }
+                };
+            });
+
+            })
+    }
+
+
+
+export const HandleAlignment = ({alignDirection, props}:{alignDirection:string, props:Partial<HandlersProps>}) =>{
+   switch (alignDirection) {
+        case "left":
+        case "right":
+        case "top":
+        case "bottom":
+            handleEdgeAlign({ alignDirection, props })
+            break;
+
+        case "horizontal":
+        case "vertical":
+            handleCenterAlign({ alignDirection, props })
+            break;
+
+      }
+
+}
+
+ export const HandleControlPanelPointerDown = ({event, isControlPanelSelected, pointerOffset, currentSelectedKnob, lastSelected, setElements}:HandlersProps)=>{
     
     event.stopPropagation();
     const target = event.target as HTMLElement;
     const controKnob = target.dataset.controlknob;
-    console.log("Control Knob", controKnob, target)
+    const button = target.closest("button")
+    const alignDirection = button?.dataset?.align;
     
+    if(alignDirection){
+      HandleAlignment({alignDirection, props:{ lastSelected, setElements } })
+      return;
+    }
+        
     if(controKnob){
         target.setPointerCapture(event.pointerId);
         setCurrentSelectedKnob(controKnob, {currentSelectedKnob, lastSelected, event, pointerOffset});
