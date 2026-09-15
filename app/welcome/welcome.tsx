@@ -129,7 +129,6 @@ function parentYToCanvas(childY: number, parentY: number): number {
           onDelinkElement={handleDelinkeElement} />
       }
 
-
       <Toolbar
         activeTool={activeTool}
         isToolBarVisible={isToolBarVisible}

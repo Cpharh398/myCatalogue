@@ -60,7 +60,7 @@ const getBackgroundStyle = () => {
     <div
       data-element-id={id}
       style={containerStyle}
-      className={`absolute touch-none transition-transform shadow-md  ${element.currentState === CurrentState.IDLE ? "cursor-grab active:cursor-grabbing" : ""} flex flex-col justify-between`}
+      className={`absolute touch-none transition-transform  ${element.currentState === CurrentState.IDLE ? "cursor-grab active:cursor-grabbing" : ""} flex flex-col justify-between`}
     >
 
       {
@@ -78,12 +78,7 @@ const getBackgroundStyle = () => {
       <DropVisualizer canvasChildren={element.canvasChildren} />
 
       <RenderInnerContent Tag={Tag} element={element} id={id} />
-      {/* <ToolBox
-        id={id}
-        isVisible={element.showToolBox ?? false}
-        element={element}
-        onUpdateStyle={onUpdateStyle}
-      /> */}
+      
 
     </div>
   );
@@ -121,7 +116,6 @@ export function CanvasChildren({ children, setElements, selectedElement, selecte
     ));
   };
 }
-
 
 
 

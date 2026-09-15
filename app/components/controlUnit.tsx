@@ -33,7 +33,7 @@ export function ControlPanel({
     onDelinkElement,
     contolPanelPosition,
     iscontrolPanelVisible,
-    onUpdateMinimized
+    onUpdateMinimized,
 }: ToolBoxProps) {
 
     if (!currentElement) return null;
@@ -42,10 +42,8 @@ export function ControlPanel({
     if (!element) return null;
 
     const [showIndividualRadius, setShowIndividualRadius] = useState<boolean>(false);
-    const fileInputRef = useRef<HTMLInputElement>(null);
-
-    const tagName = (element.elementTag || "div").toLowerCase();
-    const isMediaElement = ["img", "image", "audio", "video"].includes(tagName);
+    const isDraggingRef = useRef(false);
+  const startPosRef = useRef({ x: 0, y: 0 });
 
     // Helper for current uniform radius value
     const currentUniformRadius = (
@@ -53,6 +51,50 @@ export function ControlPanel({
         (element.borderRadius?.radiusTR ?? 0) +
         (element.borderRadius?.radiusBL ?? 0) +
         (element.borderRadius?.radiusBR ?? 0)) / 4;
+
+
+        const handlePointerDown = (event: React.PointerEvent<HTMLElement>) => {
+    // 1. Reset drag state and store initial press coordinates
+    isDraggingRef.current = false;
+    startPosRef.current = { x: event.clientX, y: event.clientY };
+
+    // Capture pointer to ensure pointerup fires reliably
+    (event.target as HTMLElement).setPointerCapture(event.pointerId);
+
+    onPointerDown(event);
+  };
+
+  const handlePointerMove = (event: React.PointerEvent<HTMLElement>) => {
+    // Only process if the primary mouse/touch button is active
+    if (event.buttons === 0) return;
+
+    // 2. Calculate distance moved from initial click position
+    const deltaX = Math.abs(event.clientX - startPosRef.current.x);
+    const deltaY = Math.abs(event.clientY - startPosRef.current.y);
+
+    // If moved more than 5px, mark as a drag operation
+    if (deltaX > 5 || deltaY > 5) {
+      isDraggingRef.current = true;
+    }
+
+    if (isDraggingRef.current) {
+      onSetControlPanelPosition(event);
+    }
+  };
+
+  const handlePointerUp = (event: React.PointerEvent<HTMLElement>) => {
+    onPointerUp(event);
+  };
+
+  const handleClick = (event: React.MouseEvent) => {
+    // 3. Prevent click toggle if a drag occurred
+    if (isDraggingRef.current) {
+      event.stopPropagation();
+      return;
+    }
+
+    onUpdateMinimized(true);
+  };
 
 
     if (!iscontrolPanelVisible) {
@@ -63,12 +105,10 @@ export function ControlPanel({
                     top: contolPanelPosition.y!,
                     right: contolPanelPosition.x!,
                 }}
-                onPointerDown={(event) => onPointerDown(event)}
-                onPointerMove={(event) => onSetControlPanelPosition(event)}
-                onPointerUp={(event) => onPointerUp(event)}
-                onClick={() => {
-                    onUpdateMinimized(true)
-                }}
+                onPointerDown={handlePointerDown}
+                onPointerMove={handlePointerMove}
+                onPointerUp={handlePointerUp}
+                onClick={handleClick}
                 title="Expand Inspector"
                 className="absolute w-10 h-10 rounded-full bg-[#1e1e1e] text-[#0c8ce9] border border-[#383838] shadow-2xl z-50 flex items-center justify-center hover:scale-110 hover:border-[#0c8ce9] transition-all cursor-grab active:cursor-grabbing"
             >
@@ -91,8 +131,23 @@ export function ControlPanel({
             onPointerUp={(event) => onPointerUp(event)}
             className="absolute w-60 bg-[#2c2c2c] text-[#e5e5e5] border-l border-[#383838] hover:cursor-grab shadow-2xl z-50 flex flex-col font-sans text-[11px] select-none "
         >
+            <Header onUpdateMinimized={onUpdateMinimized} />
+            <MediaAndTextInspector element={element} currentElement={currentElement} onUpdateStyle={onUpdateStyle} />
+            <PositionControl element={element} props={{ onUpdateStyle, elements }} />
+            <LayoutSection element={element} props={{ onUpdateStyle }} />
+            <AppearanceControl currentElement={currentElement} setShowIndividualRadius={setShowIndividualRadius} currentUniformRadius={currentUniformRadius} element={element} showIndividualRadius={showIndividualRadius} onUpdateStyle={onUpdateStyle} />
+            <FillControl element={element} currentElement={currentElement} onUpdateStyle={onUpdateStyle} />
+            <StrokeControl element={element} onUpdateStyle={onUpdateStyle} currentElement={currentElement} />
+            <LinkParentControl element={element} props={{ onDelinkElement, elements }} />
+            <Actions onDeleteElement={onDeleteElement} />
+        </div>
+    );
+}
 
-            <div
+
+export function Header({onUpdateMinimized}:{onUpdateMinimized: (value: Boolean) => void}){
+    return(
+          <div
                 onPointerDown={e => e.stopPropagation}
                 className="flex items-center justify-between px-3 py-2 bg-[#1e1e1e] border-b border-[#383838] cursor-grab active:cursor-grabbing"
             >
@@ -107,7 +162,8 @@ export function ControlPanel({
                         onUpdateMinimized(false);
                     }}
                     title="Minimize Panel"
-                    className="p-1 rounded text-[#808080] hover:text-white hover:bg-[#383838] transition-colors"
+                className="p-1 flex items-center justify-center rounded-4xl text-[#808080] hover:text-white hover:bg-[#383838] transition-colors "
+
                 >
                     {/* Minimize Icon */}
                     <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -115,17 +171,8 @@ export function ControlPanel({
                     </svg>
                 </button>
             </div>
+    )
 
-            <MediaAndTextInspector element={element} currentElement={currentElement} onUpdateStyle={onUpdateStyle} />
-            <PositionControl element={element} props={{ onUpdateStyle, elements }} />
-            <LayoutSection element={element} props={{ onUpdateStyle }} />
-            <AppearanceControl currentElement={currentElement} setShowIndividualRadius={setShowIndividualRadius} currentUniformRadius={currentUniformRadius} element={element} showIndividualRadius={showIndividualRadius} onUpdateStyle={onUpdateStyle} />
-            <FillControl element={element} currentElement={currentElement} onUpdateStyle={onUpdateStyle} />
-            <StrokeControl element={element} onUpdateStyle={onUpdateStyle} currentElement={currentElement} />
-            <LinkParentControl element={element} props={{ onDelinkElement, elements }} />
-            <Actions onDeleteElement={onDeleteElement} />
-        </div>
-    );
 }
 
 export function Actions({ onDeleteElement }: Partial<ToolBoxProps>) {
@@ -534,7 +581,6 @@ const FONT_WEIGHTS = [
     { label: "Black (900)", value: "900" },
 ];
 
-const CURSORS = ["default", "pointer", "move", "text", "not-allowed", "grab", "crosshair"];
 
 export function AppearanceControl({
     currentUniformRadius,
@@ -590,28 +636,13 @@ export function AppearanceControl({
         <div className="p-3 border-b border-[#383838] flex flex-col gap-3.5 font-sans text-[11px] text-[#b3b3b3] select-none">
             <span className="font-semibold text-white text-[12px]">Appearance</span>
 
-            {/* 1. OPACITY, BLEND MODE & CURSOR */}
             <div className="flex flex-col gap-2 bg-[#1e1e1e] p-2 rounded border border-[#383838]">
-                <div className="grid grid-cols-2 gap-2">
-                    {/* Cursor */}
-                    <div className="flex items-center justify-between bg-[#2c2c2c] px-1.5 py-1 rounded border border-[#383838]">
-                        <span className="text-[#808080] text-[9px]">Cursor</span>
-                        <select
-                            onClick={(e) => e.stopPropagation()}
-                            onPointerDown={(e) => e.stopPropagation()}
-                            value={element.lgSreenStyle?.cursor || "default"}
-                            onChange={(e) => updateProp("cursor", e.target.value)}
-                            className="bg-transparent text-white text-[10px] outline-none cursor-pointer text-right max-w-[65px] truncate"
-                        >
-                            {CURSORS.map((c) => (
-                                <option key={c} value={c} className="bg-[#1e1e1e] text-white">{c}</option>
-                            ))}
-                        </select>
-                    </div>
-                </div>
 
                 {/* Mix Blend Mode */}
-                <div className="flex items-center justify-between bg-[#2c2c2c] px-2 py-1 rounded border border-[#383838]">
+                <div
+                onPointerDown={e => e.stopPropagation()} 
+                onPointerMove={e => e.stopPropagation()} 
+                className="flex items-center justify-between bg-[#2c2c2c] px-2 py-1 rounded border border-[#383838]">
                     <span className="text-[#808080] text-[9px]">Blend Mode</span>
                     <select
                         value={element.lgSreenStyle?.mixBlendMode || "normal"}
@@ -632,7 +663,9 @@ export function AppearanceControl({
                 <div className="flex flex-col gap-2 bg-[#1e1e1e] p-2 rounded border border-[#383838]">
                     <span className="text-[10px] font-semibold text-white">Media Fitting</span>
 
-                    <div className="grid grid-cols-2 gap-2">
+                    <div         
+                    onPointerDown={e => e.stopPropagation()} 
+                    onPointerMove={e => e.stopPropagation()}  className="flex flex-col gap-2">
                         {/* Object Fit */}
                         <div className="flex items-center justify-between bg-[#2c2c2c] px-2 py-1 rounded border border-[#383838]">
                             <span className="text-[#808080] text-[9px]">Object Fit</span>
@@ -648,25 +681,16 @@ export function AppearanceControl({
                                 ))}
                             </select>
                         </div>
-
-                        {/* Object Position */}
-                        <div className="flex items-center justify-between bg-[#2c2c2c] px-2 py-1 rounded border border-[#383838]">
-                            <span className="text-[#808080] text-[9px]">Position</span>
-                            <input
-                                type="text"
-                                value={element.lgSreenStyle?.objectPosition || "center"}
-                                onChange={(e) => updateProp("objectPosition", e.target.value)}
-                                placeholder="center"
-                                className="w-14 bg-transparent text-white text-right outline-none text-[10px]"
-                            />
-                        </div>
                     </div>
                 </div>
             )}
 
             {/* 3. TYPOGRAPHY CONTROLS (Only visible for text elements) */}
             {isTextTag && (
-                <div className="flex flex-col gap-2 bg-[#1e1e1e] p-2 rounded border border-[#383838]">
+                <div
+                onPointerDown={e => e.stopPropagation()} 
+                onPointerMove={e => e.stopPropagation()} 
+                className="flex flex-col gap-2 bg-[#1e1e1e] p-2 rounded border border-[#383838]">
                     <span className="text-[10px] font-semibold text-white">Typography</span>
 
                     {/* Font Family */}
@@ -685,7 +709,7 @@ export function AppearanceControl({
                         </select>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-2">
+                    <div className="flex flex-col gap-2">
                         {/* Font Weight */}
                         <div className="flex items-center justify-between bg-[#2c2c2c] px-2 py-1 rounded border border-[#383838]">
                             <span className="text-[#808080] text-[9px]">Weight</span>
@@ -721,7 +745,7 @@ export function AppearanceControl({
                     <div className="grid grid-cols-2 gap-2">
                         {/* Line Height */}
                         <div className="flex items-center justify-between bg-[#2c2c2c] px-2 py-1 rounded border border-[#383838]">
-                            <span className="text-[#808080] text-[9px]">Line Ht</span>
+                            <span className="text-[#808080] text-[9px]">Line Hight</span>
                             <input
                                 type="text"
                                 value={element.lgSreenStyle?.lineHeight ?? "1.5"}
@@ -750,9 +774,9 @@ export function AppearanceControl({
             )}
 
             {/* 4. CORNER RADIUS */}
-            <div className="flex flex-col gap-2 bg-[#1e1e1e] p-2 rounded border border-[#383838]">
+            <div  className="flex flex-col gap-2 bg-[#1e1e1e] p-2 rounded border border-[#383838]">
                 <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-semibold text-white">Corner Radius</span>
+                    <span  className="text-[10px] font-semibold text-white">Corner Radius</span>
                     <button
                         title="Toggle Individual Corners"
                         onClick={() => setShowIndividualRadius((show) => !show)}
@@ -768,7 +792,9 @@ export function AppearanceControl({
                 {/* Uniform Radius Input */}
                 {!showIndividualRadius ? (
                     <div className="flex items-center justify-between bg-[#2c2c2c] px-2 py-1 rounded border border-[#383838]">
-                        <span className="text-[#808080] text-[9px]">Radius All</span>
+                        <span
+                        data-controlknob="ra"  
+                        className="text-[#808080] hover:cursor-ew-resize text-[9px]">Radius All</span>
                         <div className="flex items-center gap-0.5">
                             <input
                                 type="number"
@@ -783,7 +809,7 @@ export function AppearanceControl({
                                         radiusBR: val,
                                     });
                                 }}
-                                className="w-10 bg-transparent text-white text-right outline-none text-[10px]"
+                                className={`w-10 ${removeDefaultInputButton} bg-transparent text-white text-right outline-none text-[10px]`}
                             />
                             <span className="text-[#808080]">px</span>
                         </div>
@@ -792,13 +818,13 @@ export function AppearanceControl({
                     /* 4-Corner Radius Inputs */
                     <div className="grid grid-cols-2 gap-2">
                         {[
-                            { label: "TL", key: "radiusTL" },
-                            { label: "TR", key: "radiusTR" },
-                            { label: "BL", key: "radiusBL" },
-                            { label: "BR", key: "radiusBR" },
+                            { label: "tl", key: "radiusTL" },
+                            { label: "tr", key: "radiusTR" },
+                            { label: "bl", key: "radiusBL" },
+                            { label: "br", key: "radiusBR" },
                         ].map((corner) => (
                             <div key={corner.key} className="flex items-center justify-between bg-[#2c2c2c] px-2 py-1 rounded border border-[#383838]">
-                                <span className="text-[#808080] text-[9px]">{corner.label}</span>
+                                <span data-controlknob={corner.label}  className="text-[#808080] w-9 hover:cursor-ew-resize text-[9px]">{corner.label?.toUpperCase()}</span>
                                 <input
                                     type="number"
                                     min={0}
@@ -810,7 +836,7 @@ export function AppearanceControl({
                                             [corner.key]: val,
                                         });
                                     }}
-                                    className="w-8 bg-transparent text-white text-right outline-none text-[10px]"
+                                    className={`w-8 bg-transparent text-white text-right outline-none ${removeDefaultInputButton} text-[10px]`}
                                 />
                             </div>
                         ))}
@@ -822,7 +848,7 @@ export function AppearanceControl({
             <div className="flex flex-col gap-2 bg-[#1e1e1e] p-2 rounded border border-[#383838]">
                 <span className="text-[10px] font-semibold text-white">Effects & Filters</span>
 
-                <div className="grid grid-cols-2 gap-2">
+                <div className="flex flex-col gap-2">
                     {/* ========================================================================= */}
                     {/* 1. BOX SHADOW CONTROL                                                    */}
                     {/* ========================================================================= */}
@@ -839,44 +865,50 @@ export function AppearanceControl({
 
                             return (
                                 <div className="flex flex-col gap-1.5">
-                                    <div className="grid grid-cols-2 gap-2">
+                                    <div className="flex flex-col gap-2">
                                         {/* Offset X & Y */}
-                                        <div className="flex items-center justify-between bg-[#2c2c2c] px-2 py-1 rounded border border-[#383838]">
+                                        <div
+                                        onPointerDown={e => e.stopPropagation()}
+                                        onPointerMove={e => e.stopPropagation()}
+                                         className="flex items-center justify-between bg-[#2c2c2c] px-2 py-1 rounded border border-[#383838]">
                                             <span className="text-[#808080] text-[9px]">X / Y</span>
                                             <div className="flex items-center gap-1">
                                                 <input
                                                     type="number"
                                                     value={bs.x}
                                                     onChange={(e) => updateBoxShadow("x", Number(e.target.value))}
-                                                    className="w-5 bg-transparent text-white text-right outline-none text-[10px]"
+                                                    className="w-9 bg-transparent text-white text-right outline-none text-[10px]"
                                                 />
                                                 <span className="text-[#808080]">/</span>
                                                 <input
                                                     type="number"
                                                     value={bs.y}
                                                     onChange={(e) => updateBoxShadow("y", Number(e.target.value))}
-                                                    className="w-5 bg-transparent text-white text-right outline-none text-[10px]"
+                                                    className="w-9 bg-transparent text-white text-right outline-none text-[10px]"
                                                 />
                                             </div>
                                         </div>
 
                                         {/* Blur & Spread */}
-                                        <div className="flex items-center justify-between bg-[#2c2c2c] px-2 py-1 rounded border border-[#383838]">
-                                            <span className="text-[#808080] text-[9px]">Blur/Sprd</span>
+                                        <div 
+                                         onPointerDown={e => e.stopPropagation()}
+                                        onPointerMove={e => e.stopPropagation()}
+                                        className="flex items-center justify-between bg-[#2c2c2c] px-2 py-1 rounded border border-[#383838]">
+                                            <span className="text-[#808080] text-[9px]">Blur/Spread</span>
                                             <div className="flex items-center gap-1">
                                                 <input
                                                     type="number"
                                                     min={0}
                                                     value={bs.blur}
                                                     onChange={(e) => updateBoxShadow("blur", Number(e.target.value))}
-                                                    className="w-5 bg-transparent text-white text-right outline-none text-[10px]"
+                                                    className="w-9 bg-transparent text-white text-right outline-none text-[10px]"
                                                 />
                                                 <span className="text-[#808080]">/</span>
                                                 <input
                                                     type="number"
                                                     value={bs.spread}
                                                     onChange={(e) => updateBoxShadow("spread", Number(e.target.value))}
-                                                    className="w-5 bg-transparent text-white text-right outline-none text-[10px]"
+                                                    className="w-9 bg-transparent text-white text-right outline-none text-[10px]"
                                                 />
                                             </div>
                                         </div>
@@ -891,6 +923,8 @@ export function AppearanceControl({
                                                 onChange={(c) => updateBoxShadow("color", c)}
                                             />
                                             <button
+                                            onPointerDown={e => e.stopPropagation()}
+                                            onPointerMove={e => e.stopPropagation()}
                                                 onClick={() => updateProp("boxShadow", "none")}
                                                 className="text-[9px] text-[#808080] hover:text-white transition-colors"
                                             >
@@ -1009,8 +1043,11 @@ export function AppearanceControl({
                             };
 
                             return (
-                                <div className="flex flex-col gap-1.5">
-                                    <div className="grid grid-cols-2 gap-2">
+                                <div
+                                onPointerDown={e => e.stopPropagation()} 
+                                onPointerMove={e => e.stopPropagation()} 
+                                className="flex flex-col gap-1.5">
+                                    <div className="flex flex-col gap-2">
                                         {/* Offset X & Y */}
                                         <div className="flex items-center justify-between bg-[#2c2c2c] px-2 py-1 rounded border border-[#383838]">
                                             <span className="text-[#808080] text-[9px]">X / Y</span>
@@ -1019,14 +1056,14 @@ export function AppearanceControl({
                                                     type="number"
                                                     value={ds.x}
                                                     onChange={(e) => updateDropShadow("x", Number(e.target.value))}
-                                                    className="w-5 bg-transparent text-white text-right outline-none text-[10px]"
+                                                    className="w-9 bg-transparent text-white text-right outline-none text-[10px]"
                                                 />
                                                 <span className="text-[#808080]">/</span>
                                                 <input
                                                     type="number"
                                                     value={ds.y}
                                                     onChange={(e) => updateDropShadow("y", Number(e.target.value))}
-                                                    className="w-5 bg-transparent text-white text-right outline-none text-[10px]"
+                                                    className="w-9 bg-transparent text-white text-right outline-none text-[10px]"
                                                 />
                                             </div>
                                         </div>
@@ -1066,7 +1103,10 @@ export function AppearanceControl({
                     </div>
 
                     {/* Image/Element Blur Filter */}
-                    <div className="flex items-center justify-between bg-[#2c2c2c] px-2 py-1 rounded border border-[#383838]">
+                    <div
+                     onPointerDown={e => e.stopPropagation()} 
+                    onPointerMove={e => e.stopPropagation()} 
+                     className="flex items-center justify-between bg-[#2c2c2c] px-2 py-1 rounded border border-[#383838]">
                         <span className="text-[#808080] text-[9px]">Blur</span>
                         <div className="flex items-center gap-0.5">
                             <input
@@ -1087,7 +1127,10 @@ export function AppearanceControl({
                         </div>
                     </div>
 
-                    <div className="flex items-center justify-between bg-[#2c2c2c] px-2 py-1 rounded border border-[#383838]">
+                    <div
+                    onPointerDown={e => e.stopPropagation()} 
+                    onPointerMove={e => e.stopPropagation()}  
+                    className="flex items-center justify-between bg-[#2c2c2c] px-2 py-1 rounded border border-[#383838]">
                         <span className="text-[#808080] text-[9px]">Backdrop Blur</span>
                         <div className="flex items-center gap-0.5">
                             <input
