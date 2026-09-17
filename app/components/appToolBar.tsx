@@ -1,16 +1,11 @@
 import React, { useState } from "react";
-import { Modes } from "~/util/types";
-
-export type TextSubOption = "heading" | "subheading" | "paragraph";
-export type PrebuiltToolType = "accordion" | "productCard" | "form" | "pricingTable" | "hero" | "navbar";
+import { Modes, type ActiveToolType, type PrebuiltToolType, type TextSubOption } from "~/util/types";
 
 type ToolbarProps = {
-  activeTool: Modes;
+  activeTool: ActiveToolType;
   isToolBarVisible: Boolean;
   onUpdateToolBarVisibility: (value: boolean) => void;
-  onSelectTool: (
-    tool: Modes,
-    extraData?: { textType?: TextSubOption; aiPrompt?: string; componentType?: PrebuiltToolType }
+  onSelectTool: ({tool, extraData}:ActiveToolType
   ) => void;
 };
 
@@ -192,19 +187,19 @@ export function Toolbar({ activeTool, onSelectTool, isToolBarVisible, onUpdateTo
   ];
 
   const handleSelectTextOption = (option: TextSubOption) => {
-    onSelectTool(Modes.TEXT, { textType: option });
+    onSelectTool({ tool:Modes.TEXT, extraData:{ textType: option }});
     setHoveredTool(null);
   };
 
   const handleSelectComponent = (compType: PrebuiltToolType) => {
-    onSelectTool(Modes.LIBRARY, { componentType: compType });
+    onSelectTool( {tool:Modes.LIBRARY, extraData:{componentType: compType}});
     setHoveredTool(null);
   };
 
   const handleSubmitAiPrompt = (e: React.FormEvent) => {
     e.preventDefault();
     if (!aiPrompt.trim()) return;
-    onSelectTool(Modes.AI, { aiPrompt });
+    onSelectTool( { tool: Modes.AI,extraData:{ aiPrompt } } );
     setShowAiInput(false);
     setAiPrompt("");
   };
@@ -261,11 +256,11 @@ export function Toolbar({ activeTool, onSelectTool, isToolBarVisible, onUpdateTo
                   setShowAiInput((prev) => !prev);
                 } else if (!isTextTool && !isLibraryTool) {
                   setShowAiInput(false);
-                  onSelectTool(item.type);
+                  onSelectTool( {tool: item.type});
                 }
               }}
               className={`flex items-center justify-center p-2.5 text-xs font-medium text-slate-300 hover:text-white ${
-                item.type === activeTool ? "bg-blue-600/95 text-white" : "hover:bg-blue-600/95"
+                item.type === activeTool.tool ? "bg-blue-600/95 text-white" : "hover:bg-blue-600/95"
               } rounded-lg transition-colors`}
             >
               <span className="text-slate-300 hover:text-white">{item.icon}</span>
@@ -273,32 +268,51 @@ export function Toolbar({ activeTool, onSelectTool, isToolBarVisible, onUpdateTo
 
             {/* 1. TEXT TOOL SUBMENU (PERSISTENT ON HOVER OVER MENU & OPTIONS) */}
             {isTextTool && isHovered && (
-              <div className="absolute left-full pl-3 top-1/2 -translate-y-1/2 z-50">
-                <div className="bg-slate-900/95 text-white rounded-lg border border-slate-700/80 shadow-2xl p-1.5 flex flex-col gap-1 min-w-[140px] relative">
-                  <div className="absolute -left-1 top-1/2 -translate-y-1/2 w-2 h-2 bg-slate-900 border-b border-l border-slate-700/80 rotate-45" />
+  <div className="absolute left-full pl-3 top-1/2 -translate-y-1/2 z-50">
+    <div className="bg-slate-900/95 text-white rounded-2xl border border-slate-700/80 shadow-2xl p-4 flex flex-col gap-2.5 min-w-[260px] relative font-sans">
+      {/* Tooltip Pointer Arrow */}
+      <div className="absolute -left-1.5 top-1/2 -translate-y-1/2 w-3 h-3 bg-slate-900 border-b border-l border-slate-700/80 rotate-45" />
 
-                  <button
-                    onClick={() => handleSelectTextOption("heading")}
-                    className="px-3 py-1.5 text-left text-xs font-bold hover:bg-blue-600/80 rounded transition-colors"
-                  >
-                    Heading (H1)
-                  </button>
-                  <button
-                    onClick={() => handleSelectTextOption("subheading")}
-                    className="px-3 py-1.5 text-left text-xs font-semibold hover:bg-blue-600/80 rounded transition-colors"
-                  >
-                    Subheading (H2)
-                  </button>
-                  <button
-                    onClick={() => handleSelectTextOption("paragraph")}
-                    className="px-3 py-1.5 text-left text-xs font-normal text-slate-300 hover:bg-blue-600/80 hover:text-white rounded transition-colors"
-                  >
-                    Paragraph (P)
-                  </button>
-                </div>
-              </div>
-            )}
+      {/* Title Header */}
+      <span className="text-xs font-semibold text-slate-300 px-1">
+        Default text styles
+      </span>
 
+      {/* Heading (H1) Option */}
+      <button
+        type="button"
+        onClick={() => handleSelectTextOption("heading")}
+        className="w-full px-4 py-3 text-left bg-slate-800/60 hover:bg-blue-600/30 border border-slate-700/60 hover:border-blue-500/80 rounded-2xl transition-all duration-150 group"
+      >
+        <span className="block text-xl font-black text-white group-hover:text-blue-200">
+          Add a heading
+        </span>
+      </button>
+
+      {/* Subheading (H2) Option */}
+      <button
+        type="button"
+        onClick={() => handleSelectTextOption("subheading")}
+        className="w-full px-4 py-2.5 text-left bg-slate-800/60 hover:bg-blue-600/30 border border-slate-700/60 hover:border-blue-500/80 rounded-2xl transition-all duration-150 group"
+      >
+        <span className="block text-sm font-bold text-slate-100 group-hover:text-blue-200">
+          Add a subheading
+        </span>
+      </button>
+
+      {/* Body Text Option */}
+      <button
+        type="button"
+        onClick={() => handleSelectTextOption("paragraph")}
+        className="w-full px-4 py-2.5 text-left bg-slate-800/60 hover:bg-blue-600/30 border border-slate-700/60 hover:border-blue-500/80 rounded-2xl transition-all duration-150 group"
+      >
+        <span className="block text-xs font-normal text-slate-300 group-hover:text-blue-200">
+          Add a little bit of body text
+        </span>
+      </button>
+    </div>
+  </div>
+)}
             {/* 2. UI COMPONENT LIBRARY SUBMENU WITH PREVIEWS */}
             {isLibraryTool && isHovered && (
               <div className="absolute left-full pl-3 top-1/2 -translate-y-1/2 z-50">

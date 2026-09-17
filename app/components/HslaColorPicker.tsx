@@ -5,9 +5,11 @@ type HslaColorPickerProps = {
   color: string; // Accepts hex, hsla, or rgba string
   onChange: (cssColor: string) => void;
   label?: string;
+  bottom?:number
+  left?:number
 };
 
-export function HslaColorPicker({ color, onChange, label }: HslaColorPickerProps) {
+export function HslaColorPicker({ color, onChange, label, bottom, left }: HslaColorPickerProps) {
   const [isOpen, setIsOpen] = useState(false);
 
   // Helper to parse any valid incoming color string into HSLA
@@ -125,7 +127,12 @@ export function HslaColorPicker({ color, onChange, label }: HslaColorPickerProps
         <div
           onClick={stopPropagation}
           onPointerDown={stopPropagation}
-          className="absolute z-50 bottom-8 left-0 w-52 bg-[#1e1e1e] border border-[#383838] p-2.5 rounded-lg shadow-2xl flex flex-col gap-2.5 text-[10px] select-none"
+          style={{
+            bottom: bottom ? bottom : 32, 
+            left: left ? left : 0, 
+          }}
+
+          className="absolute z-50  w-52 bg-[#1e1e1e] border border-[#383838] p-2.5 rounded-lg shadow-2xl flex flex-col gap-2.5 text-[10px] select-none"
         >
           {/* A. 2D SATURATION & VALUE CANVAS BOX */}
           <div
@@ -135,8 +142,8 @@ export function HslaColorPicker({ color, onChange, label }: HslaColorPickerProps
             className="relative w-full h-28 rounded cursor-crosshair overflow-hidden border border-[#383838]"
             style={{ backgroundColor: `hsl(${hsla.h}, 100%, 50%)` }}
           >
-            <div className="absolute inset-0 bg-gradient-to-r from-white to-transparent" />
-            <div className="absolute inset-0 bg-gradient-to-t from-black to-transparent" />
+            <div className="absolute inset-0 bg-linear-to-r from-white to-transparent" />
+            <div className="absolute inset-0 bg-linear-to-t from-black to-transparent" />
 
             <div
               className="absolute w-3 h-3 rounded-full border-2 border-white shadow-md -translate-x-1/2 -translate-y-1/2 pointer-events-none"

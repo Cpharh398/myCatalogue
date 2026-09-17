@@ -76,7 +76,6 @@ const getBackgroundStyle = () => {
       <CanvasChildren guide={guide} setGuide={setGuide} selectedTarget={selectedTarget} selectedElement={selectedElement} children={element.canvasChildren!} setElements={setElements} />
       <HoveredElementHighlight currentState={element.currentState} />
       <DropVisualizer canvasChildren={element.canvasChildren} />
-
       <RenderInnerContent Tag={Tag} element={element} id={id} />
       
 

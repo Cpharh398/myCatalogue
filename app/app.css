@@ -23,5 +23,18 @@ body {
   animation: bounceShort 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }
 
+* {
+    /* Firefox */
+    scrollbar-width: none; 
+    
+    /* Internet Explorer and Edge */
+    -ms-overflow-style: none; 
+}
+
+/* Chrome, Safari, Opera, and newer Edge versions */
+*::-webkit-scrollbar {
+    display: none;
+}
+
 
 

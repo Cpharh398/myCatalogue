@@ -1,5 +1,11 @@
 import type React from "react";
+import type { CSSProperties } from "react";
 import type { JSX } from "react/jsx-runtime";
+
+
+export type TextSubOption = "heading" | "subheading" | "paragraph";
+export type PrebuiltToolType = "accordion" | "productCard" | "form" | "pricingTable" | "hero" | "navbar";
+
 
 export type Position = {
   x?: number;
@@ -46,11 +52,10 @@ export type ElementAttr = {
   canvasChildren?: Record<string, ElementAttr>,
   isChildElement?: boolean,
   currentStateInTree?: CurrentStateInTree,
-  lgSreenStyle?: React.CSSProperties,
+  lgSreenStyle?: CSSProperties,
   gradientStartPosition?: number,
   gradientEndPosition?: number,
 };
-
 
 
 export enum CurrentState {
@@ -74,6 +79,11 @@ export enum Modes {
 }
 
 
+export type ActiveToolType={
+   tool: Modes,
+  extraData?: { textType?: TextSubOption; aiPrompt?: string; componentType?: PrebuiltToolType }
+}
+
 export type pageEditProps = {
 
   event: React.PointerEvent,
@@ -81,8 +91,8 @@ export type pageEditProps = {
   pointerOffset: React.RefObject<Position>,
   setElements: (value: React.SetStateAction<Record<string, ElementAttr>>) => void,
   selectedMode: React.RefObject<Modes>,
-  activeTool: Modes
-  setActiveTool: React.Dispatch<React.SetStateAction<Modes>>
+  activeTool: ActiveToolType
+  setActiveTool:  React.Dispatch<React.SetStateAction<ActiveToolType>>
   elementState: CurrentState
   setElementState: React.Dispatch<React.SetStateAction<CurrentState>>
   selectedResizeBorder: React.RefObject<string | null>

@@ -7,7 +7,7 @@ import { HandleControlPanelPointerDown, HandleControlPanelPointerUp, HandlePoint
 import { handlePointerMove, handlePointerDownContainer, handlePointerUp, removeElement, } from "~/features/pageEditing/service"
 import { findInTree, getContainerRelativePosition, removeElementFromTree, updateElementStyle } from "~/features/util";
 import { useCanvasKeybindings } from "~/hooks/useCanvasKeyBindings";
-import { type AlignmentGuide, type ElementAttr, type HoveredElementType, type Position, CurrentState, Knobs, Modes } from "~/util/types"
+import { type ActiveToolType, type AlignmentGuide, type ElementAttr, type HoveredElementType, type Position, CurrentState, Knobs, Modes } from "~/util/types"
 
 
 
@@ -16,7 +16,7 @@ export function Canvas() {
   const [elements, setElements] = useState<Record<string, ElementAttr>>({});
   const [elementState, setElementState] = useState<CurrentState>(CurrentState.DRAG);
   const [guide, setGuide] = useState<AlignmentGuide[]>([]);
-  const [activeTool, setActiveTool] = useState<Modes>(Modes.GRAB);
+  const [activeTool, setActiveTool] = useState<ActiveToolType>({tool:Modes.GRAB});
   const selectedMode = useRef<Modes>(Modes.GRAB);
   const selectedTarget = useRef<string | null>(null);
   const lastSelected = useRef<string | null>(null);
@@ -108,7 +108,7 @@ function parentYToCanvas(childY: number, parentY: number): number {
       onPointerDown={event => handlePointerDownContainer({ event, lastSelected, elements, cursorStyle, setElements, selectedMode, selectedTarget, pointerOffset, activeTool: activeTool, setActiveTool, setElementState, selectedResizeBorder })}
       onPointerMove={event => handlePointerMove({ event, pointerOffset, selectedMode, elements, selectedTarget, setElements, elementState, selectedResizeBorder, currentHovered, setGuide, zIndexUpdated, currentDragged })}
       onPointerUp={event => handlePointerUp({ setGuide, selectedMode, selectedTarget, setElementState, cursorStyle, selectedResizeBorder, setElements, currentHovered, elements, currentDragged })}
-      className={`bg-slate-100 w-full h-screen relative overflow-hidden select-none  ${cursorStyle.current !== null ? cursorStyle.current : activeTool != Modes.GRAB ? "cursor-crosshair" : ""}`}
+      className={`bg-slate-100 w-full h-screen relative overflow-hidden select-none  ${cursorStyle.current !== null ? cursorStyle.current : activeTool.tool != Modes.GRAB ? "cursor-crosshair" : ""}`}
     >
 
       <div className="bg-slate-300/35 pointer-events-none inset-0 absolute" />
@@ -133,7 +133,8 @@ function parentYToCanvas(childY: number, parentY: number): number {
         activeTool={activeTool}
         isToolBarVisible={isToolBarVisible}
         onUpdateToolBarVisibility={(value) => setIsToolBarVisible(value)}
-        onSelectTool={(tool) => setActiveTool(tool)}
+        onSelectTool={(tool) => setActiveTool(tool)
+}
       />
 
       {Object.entries(elements).map(([id, element]) => (

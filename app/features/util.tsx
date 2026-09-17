@@ -71,17 +71,17 @@ export function updateNestedElement(
 ): Record<string, ElementAttr> {
 
   const result: Record<string, ElementAttr> = {};
-
   for (const [id, element] of Object.entries(elements)) {
     if (id === targetId) {
       result[id] = updater(element);
-      console.log(result[id])
+      // console.log(result[id]);
     } else {
       let updatedChildren: Record<string, ElementAttr>  = {};
 
       if (element.canvasChildren && Object.keys(element.canvasChildren).length > 0) {
         updatedChildren = updateNestedElement(element.canvasChildren, targetId, updater);
       }
+
 
       result[id] = {
         ...element,

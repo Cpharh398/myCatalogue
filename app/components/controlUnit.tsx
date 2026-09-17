@@ -4,7 +4,11 @@ import type { BorderRadius, CurrentState, ElementAttr, Position } from "~/util/t
 import { Link, Trash } from "lucide-react"
 import { AlignStartVertical, AlignEndVertical, AlignCenterHorizontal, AlignStartHorizontal, AlignCenterVertical, AlignEndHorizontal, Angle } from "lucide-react"
 import { ParentElementPreview } from "./elementPreview";
-import { HslaColorPicker } from "./HslaColorPicker";
+import { AppearanceControl } from "./Apperance";
+import { removeDefaultInputButton } from "~/features/pageEditing/constants";
+import { NumberInput } from "./numberInput";
+import { ColorPicker } from "antd";
+import TextSlider from "./valueSlider";
 
 type ToolBoxProps = {
     currentElement: string | null;
@@ -20,7 +24,6 @@ type ToolBoxProps = {
     onPointerUp: (event: React.PointerEvent<HTMLElement>) => void;
 };
 
-const removeDefaultInputButton = "[appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none";
 
 export function ControlPanel({
     elements,
@@ -34,16 +37,30 @@ export function ControlPanel({
     contolPanelPosition,
     iscontrolPanelVisible,
     onUpdateMinimized,
+
 }: ToolBoxProps) {
 
     if (!currentElement) return null;
 
     const element = findInTree(elements, currentElement);
     if (!element) return null;
+     const tag = (element.elementTag || "div").toLowerCase();
+
+
+    const isTextElement = ["h1", "h2", "h3", "h4", "h5", "h6", "p", "span", "a","text"].includes(tag);
+    const isButtonElement = ["button"].includes(tag) 
+    const isImageElement = ["img", "image"].includes(tag);
+    const isDivElement = ["div"].includes(tag);
+    const isVideoElement = ["video"].includes(tag);
+    const isAudioElement = ["audio"].includes(tag);
+    const isMediaElement = isImageElement || isVideoElement || isAudioElement;
+
 
     const [showIndividualRadius, setShowIndividualRadius] = useState<boolean>(false);
+    const [isAppearanceExpanded, setIsAppearanceExpanded] = useState(false);
+    const appearanceRef = useRef<HTMLDivElement>(null);
     const isDraggingRef = useRef(false);
-  const startPosRef = useRef({ x: 0, y: 0 });
+    const startPosRef = useRef({ x: 0, y: 0 });
 
     // Helper for current uniform radius value
     const currentUniformRadius = (
@@ -53,48 +70,138 @@ export function ControlPanel({
         (element.borderRadius?.radiusBR ?? 0)) / 4;
 
 
-        const handlePointerDown = (event: React.PointerEvent<HTMLElement>) => {
-    // 1. Reset drag state and store initial press coordinates
-    isDraggingRef.current = false;
-    startPosRef.current = { x: event.clientX, y: event.clientY };
+    const handlePointerDown = (event: React.PointerEvent<HTMLElement>) => {
+        isDraggingRef.current = false;
+        startPosRef.current = { x: event.clientX, y: event.clientY };
 
-    // Capture pointer to ensure pointerup fires reliably
-    (event.target as HTMLElement).setPointerCapture(event.pointerId);
+        (event.target as HTMLElement).setPointerCapture(event.pointerId);
 
-    onPointerDown(event);
-  };
+        onPointerDown(event);
+    };
 
-  const handlePointerMove = (event: React.PointerEvent<HTMLElement>) => {
-    // Only process if the primary mouse/touch button is active
-    if (event.buttons === 0) return;
+    const handleToggleAppearance = () => {
+        const nextState = !isAppearanceExpanded;
+        setIsAppearanceExpanded(nextState);
 
-    // 2. Calculate distance moved from initial click position
-    const deltaX = Math.abs(event.clientX - startPosRef.current.x);
-    const deltaY = Math.abs(event.clientY - startPosRef.current.y);
+        if (nextState) {
+            // Wait for render/expansion before scrolling
+            setTimeout(() => {
+                appearanceRef.current?.scrollIntoView({
+                    behavior: "smooth",
+                    block: "start",
+                });
+            }, 50);
+        }
+    };
 
-    // If moved more than 5px, mark as a drag operation
-    if (deltaX > 5 || deltaY > 5) {
-      isDraggingRef.current = true;
-    }
+    const updateProp = (
+        key: keyof ElementAttr,
+        value: ElementAttr[keyof ElementAttr],
+        updateFromPrev?: boolean,
+        min?: number
+    ) => {
+        onUpdateStyle!((prev) =>
+            updateNestedElement(prev, currentElement!, (el) => {
+                const previousValue = el[key];
 
-    if (isDraggingRef.current) {
-      onSetControlPanelPosition(event);
-    }
-  };
+                // 1. DIRECT ASSIGNMENT (Fast path when not updating relative values)
+                if (!updateFromPrev) {
+                    // If updating an object (e.g. style or borderRadius), merge properties directly
+                    if (
+                        previousValue &&
+                        typeof previousValue === "object" &&
+                        value &&
+                        typeof value === "object" &&
+                        !Array.isArray(value)
+                    ) {
+                        return {
+                            ...el,
+                            [key]: { ...previousValue, ...value },
+                        };
+                    }
 
-  const handlePointerUp = (event: React.PointerEvent<HTMLElement>) => {
-    onPointerUp(event);
-  };
+                    return {
+                        ...el,
+                        [key]: value,
+                    };
+                }
 
-  const handleClick = (event: React.MouseEvent) => {
-    // 3. Prevent click toggle if a drag occurred
-    if (isDraggingRef.current) {
-      event.stopPropagation();
-      return;
-    }
+                // 2. RELATIVE OBJECT ADDITION (Zero-allocation for...in loop)
+                if (
+                    previousValue &&
+                    typeof previousValue === "object" &&
+                    value &&
+                    typeof value === "object" &&
+                    !Array.isArray(value)
+                ) {
+                    const result: Record<string, any> = { ...previousValue };
+                    const deltaObj = value as Record<string, any>;
 
-    onUpdateMinimized(true);
-  };
+                    for (const prop in deltaObj) {
+                        const delta = deltaObj[prop];
+                        const prevNum = result[prop];
+
+                        if (typeof delta === "number" && typeof prevNum === "number") {
+                            result[prop] = min !== undefined ? Math.max((prevNum + delta), min) : (prevNum + delta);
+                        } else if (delta !== undefined) {
+                            result[prop] = delta;
+                        }
+                    }
+
+                    return {
+                        ...el,
+                        [key]: result,
+                    };
+                }
+
+                // 3. RELATIVE NUMERIC ADDITION
+                if (typeof previousValue === "number" && typeof value === "number") {
+                    return {
+                        ...el,
+                        [key]: previousValue + value,
+                    };
+                }
+
+                // 4. FALLBACK
+                return {
+                    ...el,
+                    [key]: value,
+                };
+            })
+        );
+    };
+
+    const handlePointerMove = (event: React.PointerEvent<HTMLElement>) => {
+
+        // Only process if the primary mouse/touch button is active
+        if (event.buttons === 0) return;
+
+        // 2. Calculate distance moved from initial click position
+        const deltaX = Math.abs(event.clientX - startPosRef.current.x);
+        const deltaY = Math.abs(event.clientY - startPosRef.current.y);
+
+        // If moved more than 5px, mark as a drag operation
+        if (deltaX > 5 || deltaY > 5) {
+            isDraggingRef.current = true;
+        }
+
+        if (isDraggingRef.current) {
+            onSetControlPanelPosition(event);
+        }
+    };
+
+    const handlePointerUp = (event: React.PointerEvent<HTMLElement>) => {
+        onPointerUp(event);
+    };
+
+    const handleClick = (event: React.MouseEvent) => {
+        // 3. Prevent click toggle if a drag occurred
+        if (isDraggingRef.current) {
+            event.stopPropagation();
+            return;
+        }
+        onUpdateMinimized(true);
+    };
 
 
     if (!iscontrolPanelVisible) {
@@ -129,48 +236,93 @@ export function ControlPanel({
             onPointerDown={(event) => onPointerDown(event)}
             onPointerMove={(event) => onSetControlPanelPosition(event)}
             onPointerUp={(event) => onPointerUp(event)}
-            className="absolute w-60 bg-[#2c2c2c] text-[#e5e5e5] border-l border-[#383838] hover:cursor-grab shadow-2xl z-50 flex flex-col font-sans text-[11px] select-none "
+            className="absolute w-60 h-150 bg-[#2c2c2c] text-[#e5e5e5] border border-[#383838] rounded-lg hover:cursor-grab shadow-2xl z-50 flex flex-col font-sans text-[11px] select-none "
         >
+            {/* Fixed Header */}
             <Header onUpdateMinimized={onUpdateMinimized} />
-            <MediaAndTextInspector element={element} currentElement={currentElement} onUpdateStyle={onUpdateStyle} />
-            <PositionControl element={element} props={{ onUpdateStyle, elements }} />
-            <LayoutSection element={element} props={{ onUpdateStyle }} />
-            <AppearanceControl currentElement={currentElement} setShowIndividualRadius={setShowIndividualRadius} currentUniformRadius={currentUniformRadius} element={element} showIndividualRadius={showIndividualRadius} onUpdateStyle={onUpdateStyle} />
-            <FillControl element={element} currentElement={currentElement} onUpdateStyle={onUpdateStyle} />
-            <StrokeControl element={element} onUpdateStyle={onUpdateStyle} currentElement={currentElement} />
-            <LinkParentControl element={element} props={{ onDelinkElement, elements }} />
-            <Actions onDeleteElement={onDeleteElement} />
+
+            {/* Scrollable Body Content */}
+            <div className="flex-1 overflow-x-visible overflow-y-auto flex flex-col divide-y divide-[#383838]">
+                <MediaAndTextInspector element={element} currentElement={currentElement} updateProp={updateProp} />
+                <PositionControl updateProp={updateProp} element={element} />
+                <LayoutSection element={element} updateProp={updateProp} />
+
+                {/* COLLAPSIBLE APPEARANCE SECTION */}
+                <div ref={appearanceRef} className="flex flex-col bg-[#242424]">
+                    {/* Expand/Collapse Toggle Button */}
+                    <button
+                        type="button"
+                        onClick={handleToggleAppearance}
+                        className="w-full px-3 py-2 flex items-center justify-between bg-[#2c2c2c] hover:bg-[#333333] text-white font-semibold transition-colors border-b border-[#383838]"
+                    >
+                        <span className="text-[10px] uppercase tracking-wider text-[#a0a0a0]">Appearance</span>
+                        <svg
+                            className={`w-3.5 h-3.5 text-[#808080] transition-transform duration-200 ${isAppearanceExpanded ? "rotate-180 text-white" : ""
+                                }`}
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                        >
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                        </svg>
+                    </button>
+
+                    {/* Expandable Appearance Content */}
+                    {isAppearanceExpanded && (
+                        <div className="p-2">
+                            <AppearanceControl
+                                currentElement={currentElement}
+                                setShowIndividualRadius={setShowIndividualRadius}
+                                currentUniformRadius={currentUniformRadius}
+                                element={element}
+                                showIndividualRadius={showIndividualRadius}
+                                updateProp={updateProp}
+                            />
+                        </div>
+                    )}
+                </div>
+
+                {
+                    (isDivElement || isButtonElement) &&<>
+                        <FillControl element={element} currentElement={currentElement} onUpdateStyle={onUpdateStyle} updateProp={updateProp} />
+                        <StrokeControl element={element} updateProp={updateProp} />
+                    </>
+                }
+
+                <LinkParentControl element={element} props={{ onDelinkElement, elements }} />
+                <Actions onDeleteElement={onDeleteElement} />
+            </div>
         </div>
     );
 }
 
 
-export function Header({onUpdateMinimized}:{onUpdateMinimized: (value: Boolean) => void}){
-    return(
-          <div
-                onPointerDown={e => e.stopPropagation}
-                className="flex items-center justify-between px-3 py-2 bg-[#1e1e1e] border-b border-[#383838] cursor-grab active:cursor-grabbing"
-            >
-                <span className="font-semibold text-[11px] text-[#b3b3b3] uppercase tracking-wider">
-                    Control Panel
-                </span>
-                <button
-                    type="button"
-                    onPointerDown={e => e.stopPropagation()}
-                    onClick={(e) => {
-                        e.stopPropagation();
-                        onUpdateMinimized(false);
-                    }}
-                    title="Minimize Panel"
+export function Header({ onUpdateMinimized }: { onUpdateMinimized: (value: Boolean) => void }) {
+    return (
+        <div
+            onPointerDown={e => e.stopPropagation}
+            className="flex items-center justify-between px-3 py-2 bg-[#1e1e1e] border-b border-[#383838] cursor-grab active:cursor-grabbing"
+        >
+            <span className="font-semibold text-[11px] text-[#b3b3b3] uppercase tracking-wider">
+                Control Panel
+            </span>
+            <button
+                type="button"
+                onPointerDown={e => e.stopPropagation()}
+                onClick={(e) => {
+                    e.stopPropagation();
+                    onUpdateMinimized(false);
+                }}
+                title="Minimize Panel"
                 className="p-1 flex items-center justify-center rounded-4xl text-[#808080] hover:text-white hover:bg-[#383838] transition-colors "
 
-                >
-                    {/* Minimize Icon */}
-                    <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <line x1="5" y1="12" x2="19" y2="12" strokeLinecap="round" />
-                    </svg>
-                </button>
-            </div>
+            >
+                {/* Minimize Icon */}
+                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <line x1="5" y1="12" x2="19" y2="12" strokeLinecap="round" />
+                </svg>
+            </button>
+        </div>
     )
 
 }
@@ -197,60 +349,38 @@ export function Actions({ onDeleteElement }: Partial<ToolBoxProps>) {
 }
 
 
-export function StrokeControl({ element, onUpdateStyle, currentElement }: { element: ElementAttr; onUpdateStyle: React.Dispatch<React.SetStateAction<Record<string, ElementAttr>>>, currentElement: string }) {
+export function StrokeControl({ element, updateProp }: { element: ElementAttr, updateProp: (key: keyof ElementAttr, value: ElementAttr[keyof ElementAttr], updateFromPrev?: boolean) => void }) {
     return (
         <div className="p-3 border-b border-[#383838] flex flex-col gap-2.5">
             <span className="font-semibold text-[#b3b3b3]">Stroke</span>
 
             <div className="flex items-center bg-[#1e1e1e] border border-[#383838] rounded p-1 justify-between">
                 <div className="flex items-center gap-2">
-                    <input
-                        type="color"
-                        value={element.borderColor || "#000000"}
-                        onChange={(e) => {
-                            onUpdateStyle!(prev => {
-                                return updateNestedElement(prev, currentElement!, (el) => {
-                                    return {
-                                        ...el,
-                                        borderColor: e.target.value
-
-                                    }
-
-                                })
-                            })
-                        }}
-                        className="w-5 h-5 rounded cursor-pointer border-none bg-transparent"
+                    <ColorPicker
+                        value={element.borderColor}
+                        size="small"
+                        onChangeComplete={(value) => updateProp("borderColor", value.toRgbString())}
                     />
+
                     <span className="uppercase text-white font-mono">
                         {element.borderColor || "#000000"}
                     </span>
                 </div>
 
-                <div className="flex items-center gap-1">
-                    <input
-                        type="number"
+                <div
+                    onClick={(e) => e.stopPropagation()}
+                    onMouseDown={(e) => e.stopPropagation()}
+                    onPointerDown={(e) => e.stopPropagation()}
+                    className="flex items-center gap-1">
+
+                    <NumberInput
                         min={0}
                         max={10}
                         value={element.borderWidth ?? 0}
-                        onClick={(e) => e.stopPropagation()}
-                        onMouseDown={(e) => e.stopPropagation()}
-                        onPointerDown={(e) => e.stopPropagation()}
-                        onChange={(e) => {
-                            e.preventDefault()
-                            onUpdateStyle!(prev => {
-                                return updateNestedElement(prev, currentElement!, (el) => {
-                                    return {
-                                        ...el,
-                                        borderWidth: Number(e.target.value)
-
-                                    }
-
-                                })
-                            })
-                        }
-                        }
-                        className="w-8 bg-[#2c2c2c] text-white text-right rounded px-1 border border-[#383838]"
+                        onChange={(value) => updateProp("borderWidth", Number(value))}
+                        className="w-11 bg-[#2c2c2c] text-white text-right rounded px-1 border border-[#383838]"
                     />
+
                     <span className="text-[#808080]">px</span>
                 </div>
             </div>
@@ -259,19 +389,7 @@ export function StrokeControl({ element, onUpdateStyle, currentElement }: { elem
                 onClick={(e) => e.stopPropagation()}
                 onMouseDown={(e) => e.stopPropagation()}
                 onPointerDown={(e) => e.stopPropagation()}
-                onChange={(e) => {
-                    e.stopPropagation();
-                    onUpdateStyle!(prev => {
-                        return updateNestedElement(prev, currentElement!, (el) => {
-                            return {
-                                ...el,
-                                borderStyle: e.target.value
-
-                            }
-
-                        })
-                    })
-                }}
+                onChange={(e) => updateProp("borderStyle", e.target.value)}
                 className="bg-[#1e1e1e] border border-[#383838] text-white rounded p-1 outline-none text-[10px]"
             >
                 <option value="solid">Solid</option>
@@ -283,7 +401,7 @@ export function StrokeControl({ element, onUpdateStyle, currentElement }: { elem
     )
 }
 
-export function FillControl({ element, onUpdateStyle, currentElement }: { element: ElementAttr; onUpdateStyle: React.Dispatch<React.SetStateAction<Record<string, ElementAttr>>>, currentElement: string }) {
+export function FillControl({ element, onUpdateStyle, currentElement, updateProp }: { element: ElementAttr; onUpdateStyle: React.Dispatch<React.SetStateAction<Record<string, ElementAttr>>>, currentElement: string, updateProp: (key: keyof ElementAttr, value: ElementAttr[keyof ElementAttr], updateFromPrev?: boolean) => void }) {
     return (
         <div className="p-3 border-b border-[#383838] flex flex-col gap-2.5">
             <div className="flex items-center justify-between">
@@ -293,19 +411,9 @@ export function FillControl({ element, onUpdateStyle, currentElement }: { elemen
                     <input
                         type="checkbox"
                         checked={element.useGradient || false}
-                        onChange={(e) => {
-                            onUpdateStyle!(prev => {
-                                return updateNestedElement(prev, currentElement!, (el) => {
-                                    return {
-                                        ...el,
-                                        useGradient: e.target.checked
+                        onChange={(e) => updateProp("useGradient", e.target.checked)
 
-                                    }
-
-                                })
-                            })
-
-                        }}
+                        }
                         className="accent-[#0c8ce9]"
                     />
                     Gradient
@@ -313,44 +421,29 @@ export function FillControl({ element, onUpdateStyle, currentElement }: { elemen
             </div>
 
             {!element.useGradient ? (
-                <div className="flex items-center bg-[#1e1e1e] border border-[#383838] rounded p-1.5 justify-between">
+                <div
+                    onPointerDown={e => e.stopPropagation()}
+                    onPointerMove={e => e.stopPropagation()}
+                    className="flex items-center bg-[#1e1e1e] border border-[#383838] rounded p-1.5 justify-between">
                     <div className="flex items-center gap-2 w-full">
                         {/* 1. CUSTOM HSLA COLOR PICKER BUTTON */}
-                        <HslaColorPicker
-                            color={element.backgroundColor || "#ffffff"}
-                            onChange={(cssColor) => {
-                                onUpdateStyle!((prev) =>
-                                    updateNestedElement(prev, currentElement!, (el) => ({
-                                        ...el,
-                                        backgroundColor: cssColor,
-                                    }))
-                                );
-                            }}
-                        />
 
-                        {/* 2. EDITABLE COLOR TEXT FIELD */}
-                        <input
-                            type="text"
-                            value={element.backgroundColor || "#ffffff"}
-                            onChange={(e) => {
-                                const val = e.target.value;
-                                onUpdateStyle!((prev) =>
-                                    updateNestedElement(prev, currentElement!, (el) => ({
-                                        ...el,
-                                        backgroundColor: val,
-                                    }))
-                                );
-                            }}
-                            placeholder="#FFFFFF or hsla(...)"
-                            className="w-full bg-transparent text-white font-mono text-[10px] outline-none border-none focus:ring-0 uppercase"
+                        <ColorPicker
+                            size="small"
+                            value={element.backgroundColor}
+                            onChangeComplete={(cssColor) => updateProp("backgroundColor", cssColor.toRgbString())}
                         />
+                        {/* 2. EDITABLE COLOR TEXT FIELD */}
+                        <p className="w-full bg-transparent text-white font-mono text-[10px] outline-none border-none focus:ring-0 uppercase" >{element.backgroundColor}</p>
+
                     </div>
                 </div>
             ) : (
                 <GradientControls
                     currentElement={currentElement}
                     element={element}
-                    onUpdateStyle={onUpdateStyle}
+                    // onUpdateStyle={onUpdateStyle}
+                    updateProp={updateProp}
                 />
             )}
         </div>
@@ -363,9 +456,10 @@ export function FillControl({ element, onUpdateStyle, currentElement }: { elemen
 type GradientControlsProps = {
     element: ElementAttr,
     currentElement: string
-    onUpdateStyle: React.Dispatch<React.SetStateAction<Record<string, ElementAttr>>>;
+    updateProp: (key: keyof ElementAttr, value: any) => void
+    // onUpdateStyle: React.Dispatch<React.SetStateAction<Record<string, ElementAttr>>>;
 };
-export function GradientControls({ element, onUpdateStyle, currentElement }: GradientControlsProps) {
+export function GradientControls({ element, currentElement, updateProp }: GradientControlsProps) {
     const sliderRef = useRef<HTMLDivElement>(null);
     const [activeHandle, setActiveHandle] = useState<"start" | "end" | null>(null);
 
@@ -387,12 +481,7 @@ export function GradientControls({ element, onUpdateStyle, currentElement }: Gra
         const relativeX = e.clientX - rect.left;
         const percentage = Math.min(Math.max(Math.round((relativeX / rect.width) * 100), 0), 100);
 
-        onUpdateStyle((prev) =>
-            updateNestedElement(prev, currentElement, (el) => ({
-                ...el,
-                [activeHandle === "start" ? "gradientStartPosition" : "gradientEndPosition"]: percentage,
-            }))
-        );
+        updateProp(activeHandle === "start" ? "gradientStartPosition" : "gradientEndPosition", percentage)
     };
 
     const handlePointerUp = (e: React.PointerEvent) => {
@@ -403,7 +492,10 @@ export function GradientControls({ element, onUpdateStyle, currentElement }: Gra
     };
 
     return (
-        <div className="flex flex-col gap-2.5 bg-[#1e1e1e] p-2.5 rounded border border-[#383838] text-[10px]">
+        <div
+            onPointerDown={e => e.stopPropagation()}
+            onPointerMove={e => e.stopPropagation()}
+            className="flex flex-col gap-2.5 bg-[#1e1e1e] p-2.5 rounded border border-[#383838] text-[10px]">
             {/* 1. GRADIENT BAR PREVIEW */}
             <div className="flex flex-col gap-1">
                 <span className="text-[#808080] font-medium text-[9px]">Gradient Stops</span>
@@ -420,7 +512,7 @@ export function GradientControls({ element, onUpdateStyle, currentElement }: Gra
                     <div
                         onPointerDown={handlePointerDown("start")}
                         onPointerUp={handlePointerUp}
-                        className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-4 h-4 rounded-full border-2 border-white shadow-md cursor-grab active:cursor-grabbing z-10"
+                        className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-4 h-4 rounded-full border-2 border-white shadow-md hover:cursor-pointer cursor-grab active:cursor-grabbing z-10"
                         style={{ left: `${startPos}%`, backgroundColor: startColor }}
                     />
 
@@ -428,7 +520,7 @@ export function GradientControls({ element, onUpdateStyle, currentElement }: Gra
                     <div
                         onPointerDown={handlePointerDown("end")}
                         onPointerUp={handlePointerUp}
-                        className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-4 h-4 rounded-full border-2 border-white shadow-md cursor-grab active:cursor-grabbing z-10"
+                        className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-4 h-4 rounded-full border-2 border-white hover:cursor-pointer shadow-md cursor-grab active:cursor-grabbing z-10"
                         style={{ left: `${endPos}%`, backgroundColor: endColor }}
                     />
                 </div>
@@ -438,31 +530,19 @@ export function GradientControls({ element, onUpdateStyle, currentElement }: Gra
             <div className="flex flex-col gap-1.5 pt-1 border-t border-[#2c2c2c]">
                 <div className="flex items-center justify-around">
                     {/* Custom HSLA Start Color Picker */}
-                    <HslaColorPicker
-                        label="start"
-                        color={startColor}
-                        onChange={(cssColor) => {
-                            onUpdateStyle((prev) =>
-                                updateNestedElement(prev, currentElement, (el) => ({
-                                    ...el,
-                                    gradientStart: cssColor,
-                                }))
-                            );
-                        }}
+
+                    <ColorPicker
+                        value={startColor}
+                        onChangeComplete={(cssColor) => updateProp("gradientStart", cssColor.toRgbString())
+
+                        }
                     />
 
-                    {/* Custom HSLA End Color Picker */}
-                    <HslaColorPicker
-                        label="end"
-                        color={endColor}
-                        onChange={(cssColor) => {
-                            onUpdateStyle((prev) =>
-                                updateNestedElement(prev, currentElement, (el) => ({
-                                    ...el,
-                                    gradientEnd: cssColor,
-                                }))
-                            );
-                        }}
+                    <ColorPicker
+                        value={endColor}
+                        onChangeComplete={(cssColor) => updateProp("gradientEnd", cssColor.toRgbString())
+
+                        }
                     />
                 </div>
 
@@ -471,24 +551,16 @@ export function GradientControls({ element, onUpdateStyle, currentElement }: Gra
                     className="flex items-center justify-between bg-[#2c2c2c] hover:cursor-ew-resize px-2 py-1 rounded border border-[#383838]">
                     <span data-controlknob="angle" className="text-[#808080] text-[9px]">Angle</span>
                     <div className="flex items-center gap-0.5">
-                        <input
-                            type="number"
+                        <NumberInput
                             min={0}
                             max={360}
                             value={angle}
-                            onChange={(e) => {
-                                onUpdateStyle!(prev => {
-                                    return updateNestedElement(prev, currentElement!, (el) => {
-                                        return {
-                                            ...el,
-                                            gradientAngle: Math.max(0, Math.min(Number(e.target.value), 360))
-                                        }
+                            onChange={(value) => updateProp("gradientAngle", Math.max(0, Math.min(Number(value), 360)))
 
-                                    })
-                                })
-                            }}
+                            }
                             className={`w-8 bg-transparent text-white text-right outline-none ${removeDefaultInputButton} text-[10px]`}
                         />
+
                         <span className="text-[#808080]">°</span>
                     </div>
                 </div>
@@ -556,618 +628,17 @@ export function LinkParentControl({ element, props }: { element: ElementAttr, pr
 }
 
 
-// Constants for standard CSS properties
-const BLEND_MODES = [
-    "normal", "multiply", "screen", "overlay", "darken", "lighten",
-    "color-dodge", "color-burn", "hard-light", "soft-light", "difference",
-    "exclusion", "hue", "saturation", "color", "luminosity"
-];
 
-const OBJECT_FIT_OPTIONS = ["cover", "contain", "fill", "none", "scale-down"];
-
-const FONT_FAMILIES = [
-    "Inter", "Roboto", "Open Sans", "Lato", "Poppins", "Montserrat",
-    "Playfair Display", "Merriweather", "Fira Code", "Courier New", "sans-serif", "serif", "monospace"
-];
-
-const FONT_WEIGHTS = [
-    { label: "Thin (100)", value: "100" },
-    { label: "Light (300)", value: "300" },
-    { label: "Regular (400)", value: "400" },
-    { label: "Medium (500)", value: "500" },
-    { label: "Semi Bold (600)", value: "600" },
-    { label: "Bold (700)", value: "700" },
-    { label: "Extra Bold (800)", value: "800" },
-    { label: "Black (900)", value: "900" },
-];
-
-
-export function AppearanceControl({
-    currentUniformRadius,
-    showIndividualRadius,
-    element,
-    currentElement,
-    onUpdateStyle,
-    setShowIndividualRadius,
-}: {
-    currentUniformRadius: number;
-    showIndividualRadius: boolean;
-    element: ElementAttr;
-    currentElement: string;
-    onUpdateStyle: React.Dispatch<React.SetStateAction<Record<string, ElementAttr>>>;
-    setShowIndividualRadius: React.Dispatch<React.SetStateAction<boolean>>;
-}) {
-    const tag = (element.elementTag || "div").toLowerCase();
-    const isTextTag = ["h1", "h2", "h3", "h4", "h5", "h6", "p", "span", "a", "button", "text", "input"].includes(tag);
-    const isMediaTag = ["img", "image", "video"].includes(tag);
-
-    // Universal helper for updating element attributes cleanly
-    const updateProp = (key: keyof React.CSSProperties, value: any) => {
-        onUpdateStyle((prev) =>
-            updateNestedElement(prev, currentElement, (el) => ({
-                ...el,
-                lgSreenStyle: {
-                    ...el.lgSreenStyle,
-                    [key]: value
-                }
-
-            }))
-
-        );
-    };
-
-    {/* Helper functions to parse and build CSS shadow strings */ }
-    const parseShadow = (str?: string) => {
-        if (!str || str === "none") return { x: 0, y: 2, blur: 4, spread: 0, color: "rgba(0,0,0,0.25)" };
-        // Extract numbers and color
-        const matches = str.match(/(-?\d+px)/g);
-        const colorMatch = str.match(/rgba?\([^)]+\)|#[a-fA-F0-9]{3,8}|[a-z]+/i);
-
-        return {
-            x: matches?.[0] ? parseInt(matches[0], 10) : 0,
-            y: matches?.[1] ? parseInt(matches[1], 10) : 2,
-            blur: matches?.[2] ? parseInt(matches[2], 10) : 4,
-            spread: matches?.[3] ? parseInt(matches[3], 10) : 0,
-            color: colorMatch?.[0] || "rgba(0,0,0,0.25)",
-        };
-    };
-
-    return (
-        <div className="p-3 border-b border-[#383838] flex flex-col gap-3.5 font-sans text-[11px] text-[#b3b3b3] select-none">
-            <span className="font-semibold text-white text-[12px]">Appearance</span>
-
-            <div className="flex flex-col gap-2 bg-[#1e1e1e] p-2 rounded border border-[#383838]">
-
-                {/* Mix Blend Mode */}
-                <div
-                onPointerDown={e => e.stopPropagation()} 
-                onPointerMove={e => e.stopPropagation()} 
-                className="flex items-center justify-between bg-[#2c2c2c] px-2 py-1 rounded border border-[#383838]">
-                    <span className="text-[#808080] text-[9px]">Blend Mode</span>
-                    <select
-                        value={element.lgSreenStyle?.mixBlendMode || "normal"}
-                        onChange={(e) => updateProp("mixBlendMode", e.target.value)}
-                        className="bg-transparent text-white text-[10px] outline-none cursor-pointer text-right capitalize"
-                    >
-                        {BLEND_MODES.map((mode) => (
-                            <option key={mode} value={mode} className="bg-[#1e1e1e] text-white">
-                                {mode}
-                            </option>
-                        ))}
-                    </select>
-                </div>
-            </div>
-
-            {/* 2. MEDIA / IMAGE & VIDEO OPTIONS (Only visible for img / video tags) */}
-            {isMediaTag && (
-                <div className="flex flex-col gap-2 bg-[#1e1e1e] p-2 rounded border border-[#383838]">
-                    <span className="text-[10px] font-semibold text-white">Media Fitting</span>
-
-                    <div         
-                    onPointerDown={e => e.stopPropagation()} 
-                    onPointerMove={e => e.stopPropagation()}  className="flex flex-col gap-2">
-                        {/* Object Fit */}
-                        <div className="flex items-center justify-between bg-[#2c2c2c] px-2 py-1 rounded border border-[#383838]">
-                            <span className="text-[#808080] text-[9px]">Object Fit</span>
-                            <select
-                                value={element.lgSreenStyle?.objectFit || "cover"}
-                                onChange={(e) => updateProp("objectFit", e.target.value)}
-                                className="bg-transparent text-white text-[10px] outline-none cursor-pointer capitalize"
-                            >
-                                {OBJECT_FIT_OPTIONS.map((fit) => (
-                                    <option key={fit} value={fit} className="bg-[#1e1e1e] text-white">
-                                        {fit}
-                                    </option>
-                                ))}
-                            </select>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* 3. TYPOGRAPHY CONTROLS (Only visible for text elements) */}
-            {isTextTag && (
-                <div
-                onPointerDown={e => e.stopPropagation()} 
-                onPointerMove={e => e.stopPropagation()} 
-                className="flex flex-col gap-2 bg-[#1e1e1e] p-2 rounded border border-[#383838]">
-                    <span className="text-[10px] font-semibold text-white">Typography</span>
-
-                    {/* Font Family */}
-                    <div className="flex items-center justify-between bg-[#2c2c2c] px-2 py-1 rounded border border-[#383838]">
-                        <span className="text-[#808080] text-[9px]">Font</span>
-                        <select
-                            value={element.lgSreenStyle?.fontFamily || "Inter"}
-                            onChange={(e) => updateProp("fontFamily", e.target.value)}
-                            className="bg-transparent text-white text-[10px] outline-none cursor-pointer max-w-27.5 truncate text-right"
-                        >
-                            {FONT_FAMILIES.map((font) => (
-                                <option key={font} value={font} className="bg-[#1e1e1e] text-white">
-                                    {font}
-                                </option>
-                            ))}
-                        </select>
-                    </div>
-
-                    <div className="flex flex-col gap-2">
-                        {/* Font Weight */}
-                        <div className="flex items-center justify-between bg-[#2c2c2c] px-2 py-1 rounded border border-[#383838]">
-                            <span className="text-[#808080] text-[9px]">Weight</span>
-                            <select
-                                value={element.lgSreenStyle?.fontWeight || "400"}
-                                onChange={(e) => updateProp("fontWeight", e.target.value)}
-                                className="bg-transparent text-white text-[10px] outline-none cursor-pointer text-right max-w-17.5 truncate"
-                            >
-                                {FONT_WEIGHTS.map((w) => (
-                                    <option key={w.value} value={w.value} className="bg-[#1e1e1e] text-white">
-                                        {w.label}
-                                    </option>
-                                ))}
-                            </select>
-                        </div>
-
-                        {/* Font Size */}
-                        <div className="flex items-center justify-between bg-[#2c2c2c] px-2 py-1 rounded border border-[#383838]">
-                            <span className="text-[#808080] text-[9px]">Size</span>
-                            <div className="flex items-center gap-0.5">
-                                <input
-                                    type="number"
-                                    min={1}
-                                    value={element.lgSreenStyle?.fontSize ?? 14}
-                                    onChange={(e) => updateProp("fontSize", Number(e.target.value))}
-                                    className="w-8 bg-transparent text-white text-right outline-none text-[10px]"
-                                />
-                                <span className="text-[#808080]">px</span>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-2">
-                        {/* Line Height */}
-                        <div className="flex items-center justify-between bg-[#2c2c2c] px-2 py-1 rounded border border-[#383838]">
-                            <span className="text-[#808080] text-[9px]">Line Hight</span>
-                            <input
-                                type="text"
-                                value={element.lgSreenStyle?.lineHeight ?? "1.5"}
-                                onChange={(e) => updateProp("lineHeight", e.target.value)}
-                                placeholder="1.5"
-                                className="w-10 bg-transparent text-white text-right outline-none text-[10px]"
-                            />
-                        </div>
-
-                        {/* Letter Spacing */}
-                        <div className="flex items-center justify-between bg-[#2c2c2c] px-2 py-1 rounded border border-[#383838]">
-                            <span className="text-[#808080] text-[9px]">Spacing</span>
-                            <div className="flex items-center gap-0.5">
-                                <input
-                                    type="number"
-                                    step="0.5"
-                                    value={element.lgSreenStyle?.letterSpacing ?? 0}
-                                    onChange={(e) => updateProp("letterSpacing", Number(e.target.value))}
-                                    className="w-8 bg-transparent text-white text-right outline-none text-[10px]"
-                                />
-                                <span className="text-[#808080]">px</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* 4. CORNER RADIUS */}
-            <div  className="flex flex-col gap-2 bg-[#1e1e1e] p-2 rounded border border-[#383838]">
-                <div className="flex items-center justify-between">
-                    <span  className="text-[10px] font-semibold text-white">Corner Radius</span>
-                    <button
-                        title="Toggle Individual Corners"
-                        onClick={() => setShowIndividualRadius((show) => !show)}
-                        className={`p-1 rounded hover:bg-[#383838] transition-colors ${showIndividualRadius ? "text-[#0c8ce9]" : "text-[#808080]"
-                            }`}
-                    >
-                        <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                            <path d="M4 8V4h4M20 8V4h-4M4 16v4h4M20 16v4h-4" strokeWidth="2" strokeLinecap="round" />
-                        </svg>
-                    </button>
-                </div>
-
-                {/* Uniform Radius Input */}
-                {!showIndividualRadius ? (
-                    <div className="flex items-center justify-between bg-[#2c2c2c] px-2 py-1 rounded border border-[#383838]">
-                        <span
-                        data-controlknob="ra"  
-                        className="text-[#808080] hover:cursor-ew-resize text-[9px]">Radius All</span>
-                        <div className="flex items-center gap-0.5">
-                            <input
-                                type="number"
-                                min={0}
-                                value={currentUniformRadius}
-                                onChange={(e) => {
-                                    const val = Number(e.target.value);
-                                    updateProp("borderRadius", {
-                                        radiusTL: val,
-                                        radiusTR: val,
-                                        radiusBL: val,
-                                        radiusBR: val,
-                                    });
-                                }}
-                                className={`w-10 ${removeDefaultInputButton} bg-transparent text-white text-right outline-none text-[10px]`}
-                            />
-                            <span className="text-[#808080]">px</span>
-                        </div>
-                    </div>
-                ) : (
-                    /* 4-Corner Radius Inputs */
-                    <div className="grid grid-cols-2 gap-2">
-                        {[
-                            { label: "tl", key: "radiusTL" },
-                            { label: "tr", key: "radiusTR" },
-                            { label: "bl", key: "radiusBL" },
-                            { label: "br", key: "radiusBR" },
-                        ].map((corner) => (
-                            <div key={corner.key} className="flex items-center justify-between bg-[#2c2c2c] px-2 py-1 rounded border border-[#383838]">
-                                <span data-controlknob={corner.label}  className="text-[#808080] w-9 hover:cursor-ew-resize text-[9px]">{corner.label?.toUpperCase()}</span>
-                                <input
-                                    type="number"
-                                    min={0}
-                                    value={element.borderRadius?.[corner.key as keyof typeof element.borderRadius] ?? 0}
-                                    onChange={(e) => {
-                                        const val = Number(e.target.value);
-                                        updateProp("borderRadius", {
-                                            ...element.borderRadius,
-                                            [corner.key]: val,
-                                        });
-                                    }}
-                                    className={`w-8 bg-transparent text-white text-right outline-none ${removeDefaultInputButton} text-[10px]`}
-                                />
-                            </div>
-                        ))}
-                    </div>
-                )}
-            </div>
-
-            {/* 5. BACKDROP BLUR & FILTERS */}
-            <div className="flex flex-col gap-2 bg-[#1e1e1e] p-2 rounded border border-[#383838]">
-                <span className="text-[10px] font-semibold text-white">Effects & Filters</span>
-
-                <div className="flex flex-col gap-2">
-                    {/* ========================================================================= */}
-                    {/* 1. BOX SHADOW CONTROL                                                    */}
-                    {/* ========================================================================= */}
-                    <div className="flex flex-col gap-2 bg-[#1e1e1e] p-2 rounded border border-[#383838]">
-                        <span className="text-[10px] font-semibold text-white">Box Shadow</span>
-                        {(() => {
-                            const bs = parseShadow(element.lgSreenStyle?.boxShadow as string);
-
-                            const updateBoxShadow = (key: string, val: any) => {
-                                const updated = { ...bs, [key]: val };
-                                const shadowString = `${updated.x}px ${updated.y}px ${updated.blur}px ${updated.spread}px ${updated.color}`;
-                                updateProp("boxShadow", shadowString);
-                            };
-
-                            return (
-                                <div className="flex flex-col gap-1.5">
-                                    <div className="flex flex-col gap-2">
-                                        {/* Offset X & Y */}
-                                        <div
-                                        onPointerDown={e => e.stopPropagation()}
-                                        onPointerMove={e => e.stopPropagation()}
-                                         className="flex items-center justify-between bg-[#2c2c2c] px-2 py-1 rounded border border-[#383838]">
-                                            <span className="text-[#808080] text-[9px]">X / Y</span>
-                                            <div className="flex items-center gap-1">
-                                                <input
-                                                    type="number"
-                                                    value={bs.x}
-                                                    onChange={(e) => updateBoxShadow("x", Number(e.target.value))}
-                                                    className="w-9 bg-transparent text-white text-right outline-none text-[10px]"
-                                                />
-                                                <span className="text-[#808080]">/</span>
-                                                <input
-                                                    type="number"
-                                                    value={bs.y}
-                                                    onChange={(e) => updateBoxShadow("y", Number(e.target.value))}
-                                                    className="w-9 bg-transparent text-white text-right outline-none text-[10px]"
-                                                />
-                                            </div>
-                                        </div>
-
-                                        {/* Blur & Spread */}
-                                        <div 
-                                         onPointerDown={e => e.stopPropagation()}
-                                        onPointerMove={e => e.stopPropagation()}
-                                        className="flex items-center justify-between bg-[#2c2c2c] px-2 py-1 rounded border border-[#383838]">
-                                            <span className="text-[#808080] text-[9px]">Blur/Spread</span>
-                                            <div className="flex items-center gap-1">
-                                                <input
-                                                    type="number"
-                                                    min={0}
-                                                    value={bs.blur}
-                                                    onChange={(e) => updateBoxShadow("blur", Number(e.target.value))}
-                                                    className="w-9 bg-transparent text-white text-right outline-none text-[10px]"
-                                                />
-                                                <span className="text-[#808080]">/</span>
-                                                <input
-                                                    type="number"
-                                                    value={bs.spread}
-                                                    onChange={(e) => updateBoxShadow("spread", Number(e.target.value))}
-                                                    className="w-9 bg-transparent text-white text-right outline-none text-[10px]"
-                                                />
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    {/* Color picker + reset */}
-                                    <div className="flex items-center justify-between bg-[#2c2c2c] px-2 py-1 rounded border border-[#383838]">
-                                        <span className="text-[#808080] text-[9px]">Shadow Color</span>
-                                        <div className="flex items-center gap-2">
-                                            <HslaColorPicker
-                                                color={bs.color}
-                                                onChange={(c) => updateBoxShadow("color", c)}
-                                            />
-                                            <button
-                                            onPointerDown={e => e.stopPropagation()}
-                                            onPointerMove={e => e.stopPropagation()}
-                                                onClick={() => updateProp("boxShadow", "none")}
-                                                className="text-[9px] text-[#808080] hover:text-white transition-colors"
-                                            >
-                                                Clear
-                                            </button>
-                                        </div>
-                                    </div>
-                                </div>
-                            );
-                        })()}
-                    </div>
-
-                    {/* ========================================================================= */}
-                    {/* 2. TEXT SHADOW CONTROL (For Text Elements)                              */}
-                    {/* ========================================================================= */}
-                    {isTextTag && (
-                        <div className="flex flex-col gap-2 bg-[#1e1e1e] p-2 rounded border border-[#383838]">
-                            <span className="text-[10px] font-semibold text-white">Text Shadow</span>
-                            {(() => {
-                                const ts = parseShadow(element.lgSreenStyle?.textShadow as string);
-
-                                const updateTextShadow = (key: string, val: any) => {
-                                    const updated = { ...ts, [key]: val };
-                                    // Text shadow has no spread radius in CSS spec
-                                    const shadowString = `${updated.x}px ${updated.y}px ${updated.blur}px ${updated.color}`;
-                                    updateProp("textShadow", shadowString);
-                                };
-
-                                return (
-                                    <div className="flex flex-col gap-1.5">
-                                        <div className="grid grid-cols-2 gap-2">
-                                            {/* Offset X & Y */}
-                                            <div className="flex items-center justify-between bg-[#2c2c2c] px-2 py-1 rounded border border-[#383838]">
-                                                <span className="text-[#808080] text-[9px]">X / Y</span>
-                                                <div className="flex items-center gap-1">
-                                                    <input
-                                                        type="number"
-                                                        value={ts.x}
-                                                        onChange={(e) => updateTextShadow("x", Number(e.target.value))}
-                                                        className="w-5 bg-transparent text-white text-right outline-none text-[10px]"
-                                                    />
-                                                    <span className="text-[#808080]">/</span>
-                                                    <input
-                                                        type="number"
-                                                        value={ts.y}
-                                                        onChange={(e) => updateTextShadow("y", Number(e.target.value))}
-                                                        className="w-5 bg-transparent text-white text-right outline-none text-[10px]"
-                                                    />
-                                                </div>
-                                            </div>
-
-                                            {/* Blur */}
-                                            <div className="flex items-center justify-between bg-[#2c2c2c] px-2 py-1 rounded border border-[#383838]">
-                                                <span className="text-[#808080] text-[9px]">Blur</span>
-                                                <input
-                                                    type="number"
-                                                    min={0}
-                                                    value={ts.blur}
-                                                    onChange={(e) => updateTextShadow("blur", Number(e.target.value))}
-                                                    className="w-6 bg-transparent text-white text-right outline-none text-[10px]"
-                                                />
-                                            </div>
-                                        </div>
-
-                                        {/* Color & Clear */}
-                                        <div className="flex items-center justify-between bg-[#2c2c2c] px-2 py-1 rounded border border-[#383838]">
-                                            <span className="text-[#808080] text-[9px]">Color</span>
-                                            <div className="flex items-center gap-2">
-                                                <HslaColorPicker
-                                                    color={ts.color}
-                                                    onChange={(c) => updateTextShadow("color", c)}
-                                                />
-                                                <button
-                                                    onClick={() => updateProp("textShadow", "none")}
-                                                    className="text-[9px] text-[#808080] hover:text-white transition-colors"
-                                                >
-                                                    Clear
-                                                </button>
-                                            </div>
-                                        </div>
-                                    </div>
-                                );
-                            })()}
-                        </div>
-                    )}
-
-                    {/* ========================================================================= */}
-                    {/* 3. FILTER DROP SHADOW (CSS filter: drop-shadow(...))                      */}
-                    {/* ========================================================================= */}
-                    <div className="flex flex-col gap-2 bg-[#1e1e1e] p-2 rounded border border-[#383838]">
-                        <span className="text-[10px] font-semibold text-white">Filter Drop Shadow</span>
-                        {(() => {
-                            // Extract drop-shadow(...) out of current filter string if present
-                            const currentFilter = (element.lgSreenStyle?.filter as string) || "";
-                            const dropMatch = currentFilter.match(/drop-shadow\(([^)]+)\)/);
-                            const ds = parseShadow(dropMatch?.[1]);
-
-                            const updateDropShadow = (key: string, val: any) => {
-                                const updated = { ...ds, [key]: val };
-                                const dropShadowStr = `drop-shadow(${updated.x}px ${updated.y}px ${updated.blur}px ${updated.color})`;
-
-                                // Replace or append drop-shadow in the filter string without overwriting blur(...)
-                                let newFilter = currentFilter;
-                                if (currentFilter.includes("drop-shadow")) {
-                                    newFilter = currentFilter.replace(/drop-shadow\([^)]+\)/, dropShadowStr);
-                                } else {
-                                    newFilter = `${currentFilter} ${dropShadowStr}`.trim();
-                                }
-
-                                updateProp("filter", newFilter);
-                            };
-
-                            const clearDropShadow = () => {
-                                const newFilter = currentFilter.replace(/drop-shadow\([^)]+\)/, "").trim();
-                                updateProp("filter", newFilter || "none");
-                            };
-
-                            return (
-                                <div
-                                onPointerDown={e => e.stopPropagation()} 
-                                onPointerMove={e => e.stopPropagation()} 
-                                className="flex flex-col gap-1.5">
-                                    <div className="flex flex-col gap-2">
-                                        {/* Offset X & Y */}
-                                        <div className="flex items-center justify-between bg-[#2c2c2c] px-2 py-1 rounded border border-[#383838]">
-                                            <span className="text-[#808080] text-[9px]">X / Y</span>
-                                            <div className="flex items-center gap-1">
-                                                <input
-                                                    type="number"
-                                                    value={ds.x}
-                                                    onChange={(e) => updateDropShadow("x", Number(e.target.value))}
-                                                    className="w-9 bg-transparent text-white text-right outline-none text-[10px]"
-                                                />
-                                                <span className="text-[#808080]">/</span>
-                                                <input
-                                                    type="number"
-                                                    value={ds.y}
-                                                    onChange={(e) => updateDropShadow("y", Number(e.target.value))}
-                                                    className="w-9 bg-transparent text-white text-right outline-none text-[10px]"
-                                                />
-                                            </div>
-                                        </div>
-
-                                        {/* Blur */}
-                                        <div className="flex items-center justify-between bg-[#2c2c2c] px-2 py-1 rounded border border-[#383838]">
-                                            <span className="text-[#808080] text-[9px]">Blur</span>
-                                            <input
-                                                type="number"
-                                                min={0}
-                                                value={ds.blur}
-                                                onChange={(e) => updateDropShadow("blur", Number(e.target.value))}
-                                                className="w-6 bg-transparent text-white text-right outline-none text-[10px]"
-                                            />
-                                        </div>
-                                    </div>
-
-                                    {/* Color & Clear */}
-                                    <div className="flex items-center justify-between bg-[#2c2c2c] px-2 py-1 rounded border border-[#383838]">
-                                        <span className="text-[#808080] text-[9px]">Color</span>
-                                        <div className="flex items-center gap-2">
-                                            <HslaColorPicker
-                                                color={ds.color}
-                                                onChange={(c) => updateDropShadow("color", c)}
-                                            />
-                                            <button
-                                                onClick={clearDropShadow}
-                                                className="text-[9px] text-[#808080] hover:text-white transition-colors"
-                                            >
-                                                Clear
-                                            </button>
-                                        </div>
-                                    </div>
-                                </div>
-                            );
-                        })()}
-                    </div>
-
-                    {/* Image/Element Blur Filter */}
-                    <div
-                     onPointerDown={e => e.stopPropagation()} 
-                    onPointerMove={e => e.stopPropagation()} 
-                     className="flex items-center justify-between bg-[#2c2c2c] px-2 py-1 rounded border border-[#383838]">
-                        <span className="text-[#808080] text-[9px]">Blur</span>
-                        <div className="flex items-center gap-0.5">
-                            <input
-                                type="number"
-                                min={0}
-                                value={
-                                    // Extract the numeric px value out of the filter string e.g. "blur(8px)" -> 8
-                                    parseInt(element.lgSreenStyle?.filter?.replace("blur(", "") || "0", 10)
-                                }
-                                onChange={(e) => {
-                                    const val = Number(e.target.value);
-                                    // Set the valid CSS filter property
-                                    updateProp("filter", val > 0 ? `blur(${val}px)` : "none");
-                                }}
-                                className="w-8 bg-transparent text-white text-right outline-none text-[10px]"
-                            />
-                            <span className="text-[#808080]">px</span>
-                        </div>
-                    </div>
-
-                    <div
-                    onPointerDown={e => e.stopPropagation()} 
-                    onPointerMove={e => e.stopPropagation()}  
-                    className="flex items-center justify-between bg-[#2c2c2c] px-2 py-1 rounded border border-[#383838]">
-                        <span className="text-[#808080] text-[9px]">Backdrop Blur</span>
-                        <div className="flex items-center gap-0.5">
-                            <input
-                                type="number"
-                                min={0}
-                                value={
-                                    parseInt(element.lgSreenStyle?.backdropFilter?.replace("blur(", "") || "0", 10)
-                                }
-                                onChange={(e) => {
-                                    const val = Number(e.target.value);
-                                    updateProp("backdropFilter", val > 0 ? `blur(${val}px)` : "none");
-                                }}
-                                className="w-8 bg-transparent text-white text-right outline-none text-[10px]"
-                            />
-                            <span className="text-[#808080]">px</span>
-                        </div>
-                    </div>
-
-                </div>
-            </div>
-        </div>
-    );
-}
-
-export function PositionControl({ props, element }: { props: Partial<ToolBoxProps>, element: ElementAttr }) {
+export function PositionControl({ element, updateProp }: { element: ElementAttr, updateProp: (key: keyof ElementAttr, value: any, updateFromPrev?: boolean, min?: number) => void }) {
 
     const PIXEL_SIZE = 16;
     return (
         <div className="p-3 border-b border-[#383838] flex flex-col gap-2.5">
-
-
             <p className="font-light text-[#b3b3b3]">Aligment</p>
             <div className="grid grid-cols-6 gap-0.5 bg-[#1e1e1e] p-1 rounded border border-[#383838]">
                 <button
                     data-align="left"
                     title="Align Left"
-                    // onClick={handleEdgeAlign}
                     className="h-6 flex items-center justify-center hover:bg-[#383838] rounded text-[#b3b3b3] hover:text-white"
                 >
                     <AlignStartVertical size={20} />
@@ -1222,30 +693,25 @@ export function PositionControl({ props, element }: { props: Partial<ToolBoxProp
 
             <div className="grid grid-cols-2 gap-2">
                 <div className="flex items-center bg-[#1e1e1e] border border-[#383838] rounded px-2 py-1 gap-1 focus-within:border-[#0c8ce9]">
-                    <span data-controlknob="x" className="text-[#808080] font-medium w-5 hover:cursor-ew-resize">X</span>
-                    <input
-                        type="number"
-                        value={Math.round((element.position?.x ?? 0) * 16)}
-                        onChange={(e) =>
-                            props.onUpdateStyle!((prev) => ({
-                                position: { ...prev.position, x: Number(e.target.value) / 16 },
-                            }))
-                        }
-                        className={`bg-transparent ${removeDefaultInputButton} w-full outline-none text-white text-right`}
+                    <TextSlider text="X" onUpdate={(value) => updateProp("position", { x: value / PIXEL_SIZE }, true,)} />
+
+                    {/* <span data-controlknob="x" className="text-[#808080]  w-full hover:cursor-ew-resize">X</span> */}
+                    <NumberInput
+                        value={Math.round((element.position?.x ?? 0) * PIXEL_SIZE)}
+                        onChange={(value) => updateProp("position", { x: value / PIXEL_SIZE })}
+                        hideUpDownArrow={true}
                     />
+
                 </div>
                 <div className="flex items-center bg-[#1e1e1e] border border-[#383838] rounded px-2 py-1 gap-1 focus-within:border-[#0c8ce9]">
-                    <span data-controlknob="y" className="text-[#808080] w-5 hover:cursor-ew-resize font-medium">Y</span>
-                    <input
-                        type="number"
+                    <TextSlider text="Y" onUpdate={(value) => updateProp("position", { y: value / PIXEL_SIZE }, true)} />
+                    {/* <span data-controlknob="y" className="text-[#808080] w-20 hover:cursor-ew-resize font-medium">Y</span> */}
+                    <NumberInput
                         value={Math.round((element.position?.y ?? 0) * PIXEL_SIZE)}
-                        onChange={(e) =>
-                            props.onUpdateStyle!((prev) => ({
-                                position: { ...prev.position, y: Number(e.target.value) / PIXEL_SIZE },
-                            }))
-                        }
-                        className={`bg-transparent ${removeDefaultInputButton} w-full outline-none text-white text-right`}
+                        hideUpDownArrow={true}
+                        onChange={(value) => updateProp("position", { y: value / PIXEL_SIZE })}
                     />
+
                 </div>
             </div>
             <div className="bg-yellow-200 w-5" >
@@ -1258,11 +724,12 @@ export function PositionControl({ props, element }: { props: Partial<ToolBoxProp
 
 type LayoutSectionProps = {
     element: ElementAttr
-    props: Partial<ToolBoxProps>
+    updateProp: (key: keyof ElementAttr, value: ElementAttr[keyof ElementAttr], updateFromPrev?: boolean, min?: number) => void
 }
 
 
-export function LayoutSection({ element, props }: LayoutSectionProps) {
+export function LayoutSection({ element, updateProp }: LayoutSectionProps) {
+    const PIXEL_SIZE = 16;
     return (
         <div className="p-3 border-b border-[#383838] flex flex-col gap-2.5">
             <div className="flex items-center justify-between">
@@ -1272,52 +739,30 @@ export function LayoutSection({ element, props }: LayoutSectionProps) {
             {/* Width / Height Inputs */}
             <div className="grid grid-cols-2 gap-2">
                 <div className="flex items-center bg-[#1e1e1e] border border-[#383838] rounded px-2 py-1 gap-1 focus-within:border-[#0c8ce9]">
-                    <span data-controlknob="w" className={`text-[#808080] hover:cursor-ew-resize font-medium`}>W</span>
-                    <input
-                        type="number"
+                    {/* <span data-controlknob="w" className={`text-[#808080] hover:cursor-ew-resize w-20 font-medium`}>W</span> */}
+                    <TextSlider text="W" onUpdate={(value) => updateProp("size", { width: value / 16 }, true, 0.1)} />
+
+                    <NumberInput
                         value={Math.round((element.size?.width ?? 1) * 16)}
-                        onChange={(e) =>
-                            props.onUpdateStyle!(prev => {
-                                return updateNestedElement(prev, props.currentElement!, (el) => {
-                                    return {
-                                        ...el,
-                                        size: {
-                                            width: Number(e.target.value) / 16,
-                                            height: el.size?.height ?? 1,
-                                        },
-                                    }
-
-                                })
-                            })
-
+                        hideUpDownArrow={true}
+                        onChange={(value) => updateProp("size", { width: Math.max(Number(value) / 16, 2) })
                         }
-                        className={`bg-transparent w-full outline-none text-white text-right ${removeDefaultInputButton}`}
                     />
+
                 </div>
                 <div className="flex items-center bg-[#1e1e1e] border border-[#383838] rounded px-2 py-1 gap-1 focus-within:border-[#0c8ce9]">
-                    <span data-controlknob="h" className="text-[#808080] hover:cursor-ew-resize font-medium">H</span>
-                    <input
-                        type="number"
+                    {/* <span data-controlknob="h" className="text-[#808080] w-20 hover:cursor-ew-resize font-medium">H</span> */}
+                    <TextSlider text="H" onUpdate={(value) => updateProp("size", { height: value / 16 }, true, 0.1)} />
+
+
+                    <NumberInput
                         value={Math.round((element.size?.height ?? 1) * 16)}
-
-                        onChange={(e) =>
-                            props.onUpdateStyle!(prev => {
-                                return updateNestedElement(prev, props.currentElement!, (el) => {
-                                    return {
-                                        ...el,
-                                        size: {
-                                            width: el.size?.width ?? 1,
-                                            height: Number(e.target.value) / 16,
-
-                                        },
-                                    }
-
-                                })
-                            })
+                        hideUpDownArrow={true}
+                        onChange={(value) => updateProp("size", { height: Math.max(Number(value) / 16, 2) })
 
                         }
-                        className={`bg-transparent w-full outline-none text-white text-right ${removeDefaultInputButton}`}
                     />
+
                 </div>
             </div>
         </div>
@@ -1329,10 +774,11 @@ export function LayoutSection({ element, props }: LayoutSectionProps) {
 type ContentInspectorProps = {
     element: ElementAttr;
     currentElement: string
-    onUpdateStyle: React.Dispatch<React.SetStateAction<Record<string, ElementAttr>>>;
+    // onUpdateStyle: React.Dispatch<React.SetStateAction<Record<string, ElementAttr>>>;
+    updateProp: (key: keyof ElementAttr, value: any, updateFromPrev?: boolean) => void
 };
 
-export function MediaAndTextInspector({ element, onUpdateStyle, currentElement }: ContentInspectorProps) {
+export function MediaAndTextInspector({ element, currentElement, updateProp }: ContentInspectorProps) {
     const fileInputRef = useRef<HTMLInputElement>(null);
     const tag = (element.elementTag || "div").toLowerCase();
 
@@ -1353,20 +799,11 @@ export function MediaAndTextInspector({ element, onUpdateStyle, currentElement }
         if (!file) return;
 
         const fileUrl = URL.createObjectURL(file);
-        onUpdateStyle((prev) => updateNestedElement(prev, currentElement, (el) => ({ ...el, content: fileUrl })))
+        updateProp("content", fileUrl)
     };
 
     return (
         <div className="p-3 border-b border-[#383838] flex flex-col gap-2.5 font-sans text-[11px]">
-            {/* SECTION HEADER */}
-            <div className="flex items-center justify-between">
-                <span className="font-semibold text-[#b3b3b3] uppercase tracking-wider text-[10px]">
-                    {isTextElement ? "Content & Typography" : `${tag} Source`}
-                </span>
-                <span className="px-1.5 py-0.5 rounded bg-[#1e1e1e] text-[#808080] font-mono text-[9px]">
-                    &lt;{tag}&gt;
-                </span>
-            </div>
 
             {/* ---------------- 1. TEXT INPUT CONTROL ---------------- */}
             {isTextElement && (
@@ -1375,19 +812,12 @@ export function MediaAndTextInspector({ element, onUpdateStyle, currentElement }
                     <textarea
                         rows={3}
                         value={element.content || ""}
-                        onChange={(e) => {
-                            e.stopPropagation();
-                            onUpdateStyle!(prev => {
-                                return updateNestedElement(prev, currentElement!, (el) => {
-                                    return {
-                                        ...el,
-                                        content: e.target.value
+                        onChange={e => {
+                            e.stopPropagation()
+                            updateProp("content", e.target.value)
 
-                                    }
-
-                                })
-                            })
                         }}
+
                         onClick={(e) => e.stopPropagation()}
                         onPointerDown={(e) => e.stopPropagation()}
                         placeholder="Enter text..."
@@ -1411,7 +841,7 @@ export function MediaAndTextInspector({ element, onUpdateStyle, currentElement }
                     />
 
                     {/* Media Preview Box */}
-                    <div className="relative w-full min-h-[100px] max-h-[160px] bg-[#1e1e1e] border border-[#383838] rounded flex items-center justify-center overflow-hidden group">
+                    <div className="relative w-full min-h-25 max-h-40 bg-[#1e1e1e] border border-[#383838] rounded flex items-center justify-center overflow-hidden group">
                         {element.content ? (
                             <>
                                 {/* IMAGE PREVIEW */}
@@ -1465,32 +895,6 @@ export function MediaAndTextInspector({ element, onUpdateStyle, currentElement }
                             </svg>
                             Replace {tag}
                         </button>
-                    </div>
-
-                    {/* URL Input Box */}
-                    <div className="flex items-center bg-[#1e1e1e] border border-[#383838] focus-within:border-[#0c8ce9] rounded px-2 py-1 gap-1.5">
-                        <span className="text-[#808080] text-[9px] font-mono uppercase">URL</span>
-                        <input
-                            type="text"
-                            value={element.content || ""}
-                            onChange={(e) => {
-                                e.stopPropagation();
-                                onUpdateStyle!(prev => {
-                                    return updateNestedElement(prev, currentElement!, (el) => {
-                                        return {
-                                            ...el,
-                                            content: e.target.value
-
-                                        }
-
-                                    })
-                                })
-                            }}
-                            onClick={(e) => e.stopPropagation()}
-                            onPointerDown={(e) => e.stopPropagation()}
-                            placeholder={`Paste ${tag} URL...`}
-                            className="bg-transparent w-full outline-none text-white text-[10px] truncate"
-                        />
                     </div>
                 </div>
             )}
