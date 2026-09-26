@@ -16,9 +16,16 @@ type ElementProps = {
   selectedTarget: React.RefObject<string | null>;
   guide: AlignmentGuide[]
   setGuide: React.Dispatch<React.SetStateAction<AlignmentGuide[]>>
+  isPreview?: boolean;
+  onNavigate?: (target: string) => void;
+  selectedIds?: string[];
+  onSelect?: (id: string, additive: boolean) => void;
 };
 
-export function CanvasElement({ id, element, guide, setGuide, setElements, selectedElement, selectedTarget }: ElementProps) {
+export function CanvasElement({ id, element, elements, guide, setGuide, setElements, selectedElement, selectedTarget, isPreview = false, onNavigate, selectedIds = [], onSelect }: ElementProps) {
+  const groupDrag = useRef<{ x: number; y: number; positions: Record<string, {x:number;y:number}> } | null>(null);
+  const selectionOnlyPointer = useRef(false);
+  const isMultiSelected = selectedIds.includes(id);
 
 const getBackgroundStyle = () => {
   if (element.useGradient) {
@@ -37,6 +44,7 @@ const getBackgroundStyle = () => {
 };
 
   const containerStyle: React.CSSProperties = {
+    display: element.hidden ? "none" : undefined,
     position: "absolute",
     top: `${element.position.y! * 16}px`,
     left: `${element.position.x! * 16}px`,
@@ -59,8 +67,29 @@ const getBackgroundStyle = () => {
   return (
     <div
       data-element-id={id}
+      id={element.sectionId || undefined}
       style={containerStyle}
-      className={`absolute touch-none transition-transform  ${element.currentState === CurrentState.IDLE ? "cursor-grab active:cursor-grabbing" : ""} flex flex-col justify-between`}
+      onPointerDown={event => {
+        if (isPreview) return;
+        if (event.shiftKey || event.metaKey || event.ctrlKey) { event.stopPropagation(); (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId); selectionOnlyPointer.current = true; onSelect?.(id, true); return; }
+        if (selectedIds.length > 1 && isMultiSelected) {
+          event.preventDefault(); event.stopPropagation();
+          (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
+          groupDrag.current = { x: event.clientX, y: event.clientY, positions: Object.fromEntries(selectedIds.map(selectedId => { const selected = elements[selectedId]; return [selectedId, { x: selected?.position.x || 0, y: selected?.position.y || 0 }]; })) };
+        }
+      }}
+      onPointerMove={event => {
+        if (selectionOnlyPointer.current) { event.stopPropagation(); return; }
+        if (!groupDrag.current) return;
+        event.stopPropagation();
+        const dx = (event.clientX - groupDrag.current.x) / 16; const dy = (event.clientY - groupDrag.current.y) / 16;
+        const positions = groupDrag.current.positions;
+        setElements(previous => { const next = { ...previous }; for (const [selectedId, position] of Object.entries(positions)) if (next[selectedId]) next[selectedId] = { ...next[selectedId], position: { x: position.x + dx, y: position.y + dy } }; return next; });
+      }}
+      onPointerUp={event => { if (selectionOnlyPointer.current) { event.stopPropagation(); selectionOnlyPointer.current = false; return; } if (groupDrag.current) { event.stopPropagation(); groupDrag.current = null; if ((event.currentTarget as HTMLElement).hasPointerCapture(event.pointerId)) (event.currentTarget as HTMLElement).releasePointerCapture(event.pointerId); } }}
+      onPointerCancel={event => { if (selectionOnlyPointer.current) { event.stopPropagation(); selectionOnlyPointer.current = false; } if (groupDrag.current) { event.stopPropagation(); groupDrag.current = null; } }}
+      onClick={event => { if (isPreview && element.linkTarget) { event.stopPropagation(); onNavigate?.(element.linkTarget); } else if (!isPreview && !event.shiftKey && !event.metaKey && !event.ctrlKey && !(selectedIds.length > 1 && isMultiSelected)) onSelect?.(id, false); }}
+      className={`absolute touch-none transition-transform ${isMultiSelected ? "ring-2 ring-blue-500 ring-offset-2" : ""} ${element.currentState === CurrentState.IDLE ? "cursor-grab active:cursor-grabbing" : ""} flex flex-col justify-between`}
     >
 
       {
@@ -76,7 +105,7 @@ const getBackgroundStyle = () => {
       <CanvasChildren guide={guide} setGuide={setGuide} selectedTarget={selectedTarget} selectedElement={selectedElement} children={element.canvasChildren!} setElements={setElements} />
       <HoveredElementHighlight currentState={element.currentState} />
       <DropVisualizer canvasChildren={element.canvasChildren} />
-      <RenderInnerContent Tag={Tag} element={element} id={id} />
+      <RenderInnerContent Tag={Tag} element={element} id={id} isPreview={isPreview} />
       
 
     </div>
@@ -119,7 +148,7 @@ export function CanvasChildren({ children, setElements, selectedElement, selecte
 
 
 
-export function RenderInnerContent({ Tag, element, id }: { Tag: keyof JSX.IntrinsicElements, element: ElementAttr, id: string }) {
+export function RenderInnerContent({ Tag, element, id, isPreview = false }: { Tag: keyof JSX.IntrinsicElements, element: ElementAttr, id: string, isPreview?: boolean }) {
 
   if (Tag === "div") return;
 
@@ -135,9 +164,17 @@ export function RenderInnerContent({ Tag, element, id }: { Tag: keyof JSX.Intrin
     );
   }
 
+  if (Tag === "input") {
+    return <input type={element.inputType || "text"} placeholder={element.content} aria-label={element.content} className={`h-full w-full border-0 bg-transparent px-3 outline-none ${isPreview ? "pointer-events-auto" : "pointer-events-none"}`} />;
+  }
+
+  if (Tag === "textarea") {
+    return <textarea placeholder={element.content} aria-label={element.content} className={`h-full w-full resize-none border-0 bg-transparent p-3 outline-none ${isPreview ? "pointer-events-auto" : "pointer-events-none"}`} />;
+  }
+
   // Default tag rendering h1, h2, p, button
   return (
-    <Tag className="w-full h-full flex items-center justify-center wrap-break-word pointer-events-none">
+    <Tag className={`w-full h-full flex items-center justify-center wrap-break-word ${isPreview ? "pointer-events-auto" : "pointer-events-none"}`}>
       {element.content}
     </Tag>
   );

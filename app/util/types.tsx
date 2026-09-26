@@ -29,6 +29,23 @@ export type Size = {
   height: number;
 };
 
+export type ResponsiveDevice = "tablet" | "mobile";
+export type ResponsiveElementStyle = {
+  position?: Position;
+  size?: Size;
+  lgSreenStyle?: CSSProperties;
+  backgroundColor?: string;
+  borderRadius?: BorderRadius;
+  borderColor?: string;
+  borderWidth?: number;
+  borderStyle?: string;
+  useGradient?: boolean;
+  gradientStart?: string;
+  gradientEnd?: string;
+  gradientAngle?: number;
+  hidden?: boolean;
+};
+
 
 export type ElementAttr = {
 
@@ -55,6 +72,12 @@ export type ElementAttr = {
   lgSreenStyle?: CSSProperties,
   gradientStartPosition?: number,
   gradientEndPosition?: number,
+  linkTarget?: string,
+  sectionId?: string,
+  sectionName?: string,
+  responsiveStyles?: Partial<Record<ResponsiveDevice, ResponsiveElementStyle>>,
+  hidden?: boolean,
+  inputType?: "text" | "email" | "tel";
 };
 
 
@@ -127,19 +150,19 @@ export interface AlignmentGuide {
   length: number;     // How long the line segment extends (in rem)
 }
 
-export enum Knobs { 
-  xPosittion = "xPosittion",
-  yPosition = "yPosition",
-  width = "width",
-  height = "height",
-  rotation = "rotation",
-  opacity = "opacity",
-  radiusTL = "radiusTL",
-  radiusTR = "radiusTR",
-  radiusBL = "radiusBL",
-  radiusBR = "radiusBR",
-  radiusAll = "radiusAll",
-  gradientStartPosition = "gradientStartPosition",
-  gradientEndPosition = "gradientEndPosition",
-  gradientAngle = "gradientAngle"
-}
+// export enum Knobs {
+//   xPosittion = "xPosittion",
+//   yPosition = "yPosition",
+//   width = "width",
+//   height = "height",
+//   rotation = "rotation",
+//   opacity = "opacity",
+//   radiusTL = "radiusTL",
+//   radiusTR = "radiusTR",
+//   radiusBL = "radiusBL",
+//   radiusBR = "radiusBR",
+//   radiusAll = "radiusAll",
+//   gradientStartPosition = "gradientStartPosition",
+//   gradientEndPosition = "gradientEndPosition",
+//   gradientAngle = "gradientAngle"
+// }

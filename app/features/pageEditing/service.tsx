@@ -381,7 +381,8 @@ export const updateElementsPosition = ({
 
 export const handlePointerMove = ({ selectedTarget, selectedMode, event, pointerOffset, setElements, setGuide, elementState, selectedResizeBorder, elements, currentHovered, zIndexUpdated, currentDragged }: Partial<pageEditProps>) => {
 
-  event?.preventDefault();
+  if (!event || event.buttons === 0) return;
+  event.preventDefault();
   if (!selectedTarget!.current) return;
 
   if (selectedResizeBorder!.current !== null) {
@@ -435,6 +436,8 @@ export const createNewBox = ({ event, setElements, selectedMode, activeTool, set
 
   if (activeTool?.tool === Modes.GRAB) {
     setElements!((prev) => toggleToolBox(prev, null));
+    if (selectedTarget) selectedTarget.current = null;
+    if (lastSelected) lastSelected.current = null;
     return;
   };
 
@@ -599,77 +602,44 @@ export function updateSelectedTarget({ target, selectedTarget, elementID, lastSe
 
 
 export const handlePointerUp = ({ selectedMode, setGuide, selectedTarget, cursorStyle, setElementState, setElements, selectedResizeBorder, event, currentHovered, elements, currentDragged }: Partial<pageEditProps>) => {
-
   event?.preventDefault();
   const currentSelectedElement = selectedTarget?.current;
-
-  setElementState!(prev => CurrentState.DRAG);
-
   const hoveredId = currentHovered?.current;
   const draggedId = currentSelectedElement;
+  setElementState?.(CurrentState.IDLE);
 
-  if (hoveredId && draggedId) {
-
-    const draggedElement: ElementAttr | undefined = findInTree(elements, draggedId);
-
-    if (!draggedElement) return;
-
-    setElements!((prev) => {
-
-      let nextState: Record<string, ElementAttr> = { ...prev };
-
-      const parent = findInTree(nextState, hoveredId.elementID);
-
-      if (parent) {
-
-        const updatedChild: ElementAttr = {
-          ...draggedElement,
-          currentState: CurrentState.IDLE,
-          showToolBox: false,
-          currentStateInTree: {
-            isChildElement: true,
-            parentElementID: hoveredId.elementID,
-          },
-          position: { x: hoveredId.relativePosition.x, y: hoveredId.relativePosition.y }
-        };
-
-        nextState = { ...removeElementFromTree({ elements: nextState, targetId: draggedId }) }
-
-        nextState = updateNestedElement(nextState, hoveredId.elementID, (parentEl) => ({
-          ...parentEl,
-          currentState: CurrentState.IDLE,
-          canvasChildren: {
-            ...parent.canvasChildren,
-            [draggedId]: updatedChild,
-          },
-
-        }))
-
+  try {
+    if (hoveredId && draggedId) {
+      const draggedElement = findInTree(elements, draggedId);
+      if (draggedElement) {
+        setElements?.((prev) => {
+          let nextState: Record<string, ElementAttr> = { ...prev };
+          const parent = findInTree(nextState, hoveredId.elementID);
+          if (!parent) return nextState;
+          const updatedChild: ElementAttr = {
+            ...draggedElement,
+            currentState: CurrentState.IDLE,
+            showToolBox: false,
+            currentStateInTree: { isChildElement: true, parentElementID: hoveredId.elementID },
+            position: { x: hoveredId.relativePosition.x, y: hoveredId.relativePosition.y },
+          };
+          nextState = removeElementFromTree({ elements: nextState, targetId: draggedId }) || nextState;
+          return updateNestedElement(nextState, hoveredId.elementID, (parentEl) => ({
+            ...parentEl,
+            currentState: CurrentState.IDLE,
+            canvasChildren: { ...parent.canvasChildren, [draggedId]: updatedChild },
+          }));
+        });
       }
-
-      return nextState;
-    });
-
-
-  } else {
-
-    setElements!((prev) =>
-      updateNestedElement(prev, currentSelectedElement ?? "", (el) => ({
-        ...el,
-        currentState: CurrentState.IDLE,
-      }))
-    );
-  };
-
-  if (currentDragged?.current && currentHovered?.current) {
-    currentDragged!.current = null;
-    currentHovered!.current = null;
+    } else if (draggedId) {
+      setElements?.((prev) => updateNestedElement(prev, draggedId, (el) => ({ ...el, currentState: CurrentState.IDLE })));
+    }
+  } finally {
+    if (currentDragged) currentDragged.current = null;
+    if (currentHovered) currentHovered.current = null;
+    setGuide?.([]);
+    reset({ cursorStyle, selectedMode, selectedTarget, selectedResizeBorder });
   }
-
-  setGuide?.([]);
-
-  reset({ cursorStyle, selectedMode, selectedTarget, selectedResizeBorder })
-
 };
 
 
@@ -681,7 +651,6 @@ export function reset({ cursorStyle, selectedMode, selectedTarget, selectedResiz
 
   cursorStyle!.current = null;
   selectedMode!.current = Modes.GRAB;
-  selectedTarget!.current = null;
   selectedResizeBorder!.current = null;
 
 }

@@ -1,4 +1,4 @@
-import { Knobs, type BorderRadius, type ElementAttr, type Position } from "~/util/types";
+import {type BorderRadius, type ElementAttr, type Position } from "~/util/types";
 import { findInTree, getContainerRelativePosition, updateNestedElement } from "../util";
 
 type HandlersProps = {
@@ -6,7 +6,6 @@ type HandlersProps = {
     isControlPanelSelected: React.RefObject<boolean>, 
     pointerOffset: React.RefObject<Position>,
     setControlPanelPosition: React.Dispatch<React.SetStateAction<Position>>,
-    currentSelectedKnob: React.RefObject<Knobs | null>,
     lastSelected: React.RefObject<string | null>,
     elements: Record<string, ElementAttr>,
     setElements: React.Dispatch<React.SetStateAction<Record<string, ElementAttr>>>
@@ -48,9 +47,6 @@ type HandlersProps = {
                         }
                     };
             })
-
-            
-
         })
 
     }
@@ -115,7 +111,7 @@ export const HandleAlignment = ({alignDirection, props}:{alignDirection:string, 
 
 }
 
- export const HandleControlPanelPointerDown = ({event, isControlPanelSelected, pointerOffset, currentSelectedKnob, lastSelected, setElements}:HandlersProps)=>{
+ export const HandleControlPanelPointerDown = ({event, isControlPanelSelected, pointerOffset,  lastSelected, setElements}:HandlersProps)=>{
     
     event.stopPropagation();
     const target = event.target as HTMLElement;
@@ -138,7 +134,7 @@ export const HandleAlignment = ({alignDirection, props}:{alignDirection:string, 
     };
   }
   
- export const HandlePointerMove = ({event, isControlPanelSelected, pointerOffset, setControlPanelPosition, currentSelectedKnob, lastSelected, elements, setElements }:HandlersProps)=>{
+ export const HandlePointerMove = ({event, isControlPanelSelected, pointerOffset, setControlPanelPosition,  lastSelected, elements, setElements }:HandlersProps)=>{
 
     event.preventDefault();  
     if(!pointerOffset?.current) return;
@@ -152,12 +148,11 @@ export const HandleAlignment = ({alignDirection, props}:{alignDirection:string, 
     };
   }
   
-  export const HandleControlPanelPointerUp = ({event, isControlPanelSelected, currentSelectedKnob }:Partial<HandlersProps>)=>{
-    if(!event || !isControlPanelSelected || !currentSelectedKnob )return;
+  export const HandleControlPanelPointerUp = ({event, isControlPanelSelected }:Partial<HandlersProps>)=>{
+    if(!event || !isControlPanelSelected )return;
 
     isControlPanelSelected.current = false;
     const target = event.target as HTMLElement;
-    currentSelectedKnob.current = null;
 
     target.releasePointerCapture(event.pointerId);
   }

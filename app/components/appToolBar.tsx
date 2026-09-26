@@ -1,12 +1,23 @@
-import React, { useState } from "react";
-import { Modes, type ActiveToolType, type PrebuiltToolType, type TextSubOption } from "~/util/types";
+import React, { useState, type ReactNode } from "react";
+import { Modes, type ActiveToolType, type PrebuiltToolType, type ResponsiveDevice, type TextSubOption } from "~/util/types";
 
 type ToolbarProps = {
   activeTool: ActiveToolType;
-  isToolBarVisible: Boolean;
-  onUpdateToolBarVisibility: (value: boolean) => void;
   onSelectTool: ({tool, extraData}:ActiveToolType
   ) => void;
+  selectedSection: "pages" | "catalogue" | "library" | null;
+  onSelectSection: (section: "pages" | "catalogue" | "library") => void;
+  sectionPanel: ReactNode;
+  onPublish: () => void;
+  onDashboard: () => void;
+  onPreview: () => void;
+  onTutorial: () => void;
+  isPreview: boolean;
+  previewDevice: "desktop" | "tablet" | "mobile";
+  onSetPreviewDevice: (device: "desktop" | "tablet" | "mobile") => void;
+  responsiveEditDevice: ResponsiveDevice | null;
+  onEnterResponsiveEdit: () => void;
+  onExitResponsiveEdit: () => void;
 };
 
 // ---------------------------------------------------------------------------
@@ -89,7 +100,7 @@ const prebuiltComponents: { type: PrebuiltToolType; label: string; description: 
   },
 ];
 
-export function Toolbar({ activeTool, onSelectTool, isToolBarVisible, onUpdateToolBarVisibility }: ToolbarProps) {
+export function Toolbar({ activeTool, onSelectTool, selectedSection, onSelectSection, sectionPanel, onPublish, onDashboard, onPreview, onTutorial, isPreview, previewDevice, onSetPreviewDevice, responsiveEditDevice, onEnterResponsiveEdit, onExitResponsiveEdit }: ToolbarProps) {
   const [hoveredTool, setHoveredTool] = useState<Modes | null>(null);
   const [showAiInput, setShowAiInput] = useState(false);
   const [aiPrompt, setAiPrompt] = useState("");
@@ -167,15 +178,6 @@ export function Toolbar({ activeTool, onSelectTool, isToolBarVisible, onUpdateTo
       ),
     },
     {
-      type: Modes.LIBRARY,
-      label: "UI Library",
-      icon: (
-        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" strokeWidth="2" strokeLinecap="round" />
-        </svg>
-      ),
-    },
-    {
       type: Modes.AI,
       label: "AI Assistant",
       icon: (
@@ -204,39 +206,13 @@ export function Toolbar({ activeTool, onSelectTool, isToolBarVisible, onUpdateTo
     setAiPrompt("");
   };
 
-  if (!isToolBarVisible) {
-    return (
-      <div className="fixed left-2 top-1/2 -translate-y-1/2 z-50">
-        <button
-          type="button"
-          onClick={() => onUpdateToolBarVisibility(true)}
-          title="Expand Toolbar"
-          className="w-10 h-10 rounded-full bg-slate-900/90 backdrop-blur-md border border-slate-700/80 shadow-2xl flex items-center justify-center text-slate-300 hover:text-white hover:border-slate-500 hover:scale-105 transition-all"
-        >
-          <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M13 17l5-5-5-5M6 17l5-5-5-5" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-        </button>
-      </div>
-    );
-  }
-
   return (
-    <div className="bg-slate-900/90 fixed left-2 top-1/2 -translate-y-1/2 z-50 backdrop-blur-md border border-slate-700/80 rounded-xl shadow-2xl p-1.5 flex flex-col gap-1">
-      <button
-        type="button"
-        onClick={() => onUpdateToolBarVisibility(false)}
-        title="Minimize Toolbar"
-        className="w-full py-1 mb-0.5 rounded-lg flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
-      >
-        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-          <path d="M11 17l-5-5 5-5M18 17l-5-5 5-5" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
-      </button>
+    <div className="fixed left-2 top-2 bottom-2 z-50 flex items-center" onPointerDown={event => event.stopPropagation()}>
+    <div className="h-full w-[58px] bg-white border border-[#e4dfd5] rounded-2xl shadow-xl p-1.5 flex flex-col items-center gap-1 overflow-visible text-slate-700">
+      <button type="button" onClick={onDashboard} title="myCatalogue dashboard" className="w-10 h-10 mb-1 rounded-xl bg-[#315b45] text-white font-bold text-lg">m</button>
+      <div className="w-9 h-px bg-[#e8e4dc] mb-1" />
 
-      <div className="w-full h-[1px] bg-slate-800 mb-0.5" />
-
-      {elementsList.map((item) => {
+      {!isPreview && elementsList.map((item) => {
         const isTextTool = item.type === Modes.TEXT;
         const isLibraryTool = item.type === Modes.LIBRARY;
         const isAiTool = item.type === Modes.AI;
@@ -259,11 +235,11 @@ export function Toolbar({ activeTool, onSelectTool, isToolBarVisible, onUpdateTo
                   onSelectTool( {tool: item.type});
                 }
               }}
-              className={`flex items-center justify-center p-2.5 text-xs font-medium text-slate-300 hover:text-white ${
-                item.type === activeTool.tool ? "bg-blue-600/95 text-white" : "hover:bg-blue-600/95"
+              className={`flex items-center justify-center p-2.5 text-xs font-medium ${
+                item.type === activeTool.tool ? "bg-[#315b45] text-white" : "text-slate-600 hover:bg-[#f1eee7]"
               } rounded-lg transition-colors`}
             >
-              <span className="text-slate-300 hover:text-white">{item.icon}</span>
+              <span className="text-current">{item.icon}</span>
             </button>
 
             {/* 1. TEXT TOOL SUBMENU (PERSISTENT ON HOVER OVER MENU & OPTIONS) */}
@@ -380,6 +356,20 @@ export function Toolbar({ activeTool, onSelectTool, isToolBarVisible, onUpdateTo
           </div>
         );
       })}
+      <div className="w-9 h-px bg-[#e8e4dc] my-1" />
+      <button title="Pages" onClick={() => onSelectSection("pages")} className={`p-2.5 rounded-lg ${selectedSection === "pages" ? "bg-[#e7efe8] text-[#315b45]" : "hover:bg-[#f1eee7]"}`}><svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/></svg></button>
+      <button title="Shop catalogue" onClick={() => onSelectSection("catalogue")} className={`p-2.5 rounded-lg ${selectedSection === "catalogue" ? "bg-[#e7efe8] text-[#315b45]" : "hover:bg-[#f1eee7]"}`}><svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M5 8h14l1 13H4L5 8Z"/><path d="M9 9V6a3 3 0 0 1 6 0v3"/></svg></button>
+      <button title="Component library" onClick={() => onSelectSection("library")} className={`p-2.5 rounded-lg ${selectedSection === "library" ? "bg-[#e7efe8] text-[#315b45]" : "hover:bg-[#f1eee7]"}`}><svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="8" height="8" rx="1"/><rect x="13" y="3" width="8" height="8" rx="1"/><rect x="3" y="13" width="8" height="8" rx="1"/><rect x="13" y="13" width="8" height="8" rx="1"/></svg></button>
+      {selectedSection && !isPreview && <div className="absolute left-[66px] top-0 bottom-0 w-64 max-h-[calc(100vh-1rem)] overflow-auto rounded-2xl border border-[#e4dfd5] bg-white shadow-2xl p-3 text-slate-800">{sectionPanel}</div>}
+      <div className="mt-auto flex flex-col gap-1 items-center">
+        {(isPreview || responsiveEditDevice) && <div className="mb-1 flex flex-col gap-1 border-b border-[#e8e4dc] pb-2"><button title="Desktop preview" onClick={()=>onSetPreviewDevice("desktop")} className={`p-2 rounded-lg ${previewDevice==="desktop"?"bg-[#e7efe8] text-[#315b45]":"hover:bg-[#f1eee7]"}`}><svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8m-4-4v4"/></svg></button><button title="Tablet preview" onClick={()=>onSetPreviewDevice("tablet")} className={`p-2 rounded-lg ${previewDevice==="tablet"?"bg-[#e7efe8] text-[#315b45]":"hover:bg-[#f1eee7]"}`}><svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="5" y="2" width="14" height="20" rx="2"/><path d="M11 18h2"/></svg></button><button title="Mobile preview" onClick={()=>onSetPreviewDevice("mobile")} className={`p-2 rounded-lg ${previewDevice==="mobile"?"bg-[#e7efe8] text-[#315b45]":"hover:bg-[#f1eee7]"}`}><svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="7" y="2" width="10" height="20" rx="2"/><path d="M11 18h2"/></svg></button></div>}
+        {isPreview && previewDevice !== "desktop" && <button title={`Edit ${previewDevice} layout`} onClick={onEnterResponsiveEdit} className="mb-1 rounded-lg bg-[#fff4e7] px-1.5 py-2 text-[9px] font-semibold leading-3 text-[#9b572c] hover:bg-[#fcebd8]">Edit<br/>{previewDevice}</button>}
+        {responsiveEditDevice && <button title={`Finish ${responsiveEditDevice} editing`} onClick={onExitResponsiveEdit} className="mb-1 rounded-lg bg-[#e7efe8] px-1.5 py-2 text-[9px] font-semibold leading-3 text-[#315b45] hover:bg-[#dbe8dc]">Done<br/>editing</button>}
+        <button title={isPreview ? "Edit site" : "Preview site"} onClick={onPreview} className={`p-2.5 rounded-lg ${isPreview ? "bg-[#e7efe8] text-[#315b45]" : "hover:bg-[#f1eee7]"}`}><svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></button>
+        <button title="Tutorial" onClick={onTutorial} className="p-2.5 rounded-lg hover:bg-[#f1eee7]"><svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M9.6 9a2.5 2.5 0 1 1 4.6 1.4c-1.3 1.2-2.2 1.5-2.2 3.1M12 17h.01"/></svg></button>
+        <button title="Publish" onClick={onPublish} className="w-10 h-10 rounded-xl bg-[#315b45] text-white hover:bg-[#254735] grid place-items-center"><svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M5 12 12 3l7 9h-5l-1 9h-2l-1-9H5Z"/></svg></button>
+      </div>
+    </div>
     </div>
   );
 }
