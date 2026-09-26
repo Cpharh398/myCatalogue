@@ -1,5 +1,6 @@
 import {type BorderRadius, type ElementAttr, type Position } from "~/util/types";
 import { findInTree, getContainerRelativePosition, updateNestedElement } from "../util";
+import { getCanvasGridHeight, getCanvasScale } from "~/util/layoutUnits";
 
 type HandlersProps = {
     event:React.PointerEvent<HTMLElement>, 
@@ -33,9 +34,9 @@ type HandlersProps = {
                     } else {
                         const canvasDom = document.getElementById("canvas-container");
                         const pixelWidth = canvasDom?.clientWidth ?? window.innerWidth;
-                        const pixelHeight = canvasDom?.clientHeight ?? window.innerHeight;
-                        containerWidth = pixelWidth / 16;
-                        containerHeight = pixelHeight / 16;
+                        const scale = getCanvasScale(canvasDom);
+                        containerWidth = pixelWidth / scale;
+                        containerHeight = getCanvasGridHeight(canvasDom);
                     }
         
                     return {
@@ -71,9 +72,9 @@ type HandlersProps = {
                 } else {
                     const canvasDom = document.getElementById("canvas-container");
                     const pixelWidth = canvasDom?.clientWidth ?? window.innerWidth;
-                    const pixelHeight = canvasDom?.clientHeight ?? window.innerHeight;
-                    containerWidth = pixelWidth / 16;
-                    containerHeight = pixelHeight / 16;
+                    const scale = getCanvasScale(canvasDom);
+                    containerWidth = pixelWidth / scale;
+                    containerHeight = getCanvasGridHeight(canvasDom);
                 }
                 const newX = (containerWidth - elementWidth) / 2;
                 const newY = (containerHeight - elementHeight) / 2;
@@ -126,17 +127,19 @@ export const HandleAlignment = ({alignDirection, props}:{alignDirection:string, 
     const currentTarget = event.currentTarget;
     currentTarget.setPointerCapture(event.pointerId);
     isControlPanelSelected.current = true;
-    const rect = currentTarget.getBoundingClientRect();
+    const panel = currentTarget.closest("[data-control-panel-root]") as HTMLElement | null;
+    const rect = (panel || currentTarget).getBoundingClientRect();
 
     pointerOffset.current = { 
       x: event.clientX - rect.right, 
       y: event.clientY - rect.top
     };
   }
-  
+
  export const HandlePointerMove = ({event, isControlPanelSelected, pointerOffset, setControlPanelPosition,  lastSelected, elements, setElements }:HandlersProps)=>{
 
-    event.preventDefault();  
+    event.preventDefault();
+    event.stopPropagation();
     if(!pointerOffset?.current) return;
     
     if(isControlPanelSelected.current){
@@ -151,10 +154,8 @@ export const HandleAlignment = ({alignDirection, props}:{alignDirection:string, 
   export const HandleControlPanelPointerUp = ({event, isControlPanelSelected }:Partial<HandlersProps>)=>{
     if(!event || !isControlPanelSelected )return;
 
+    event.stopPropagation();
     isControlPanelSelected.current = false;
-    const target = event.target as HTMLElement;
-
-    target.releasePointerCapture(event.pointerId);
+    const target = event.currentTarget as HTMLElement;
+    if (target.hasPointerCapture(event.pointerId)) target.releasePointerCapture(event.pointerId);
   }
-
-  

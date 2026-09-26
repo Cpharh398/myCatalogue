@@ -1,4 +1,5 @@
 import type { ElementAttr, Position } from "~/util/types";
+import { getCanvasScale } from "~/util/layoutUnits";
 
 export const updateElementStyle = (id: string, updater: (element: ElementAttr) => ElementAttr, setElements: (value: React.SetStateAction<Record<string, ElementAttr>>) => void) => {
     if(!id)return;
@@ -148,14 +149,57 @@ export const getContainerRelativePosition = (
   container: HTMLElement,
   event: React.PointerEvent<Element> | undefined,
   pointerOffset: React.RefObject<Position> | undefined,
-  isControlPanel?:Boolean
+  isControlPanel?:Boolean,
+  layoutScale?: { x: number; y: number },
   )=>{
 
   const rect = container.getBoundingClientRect();
-  const PIXEL_SIZE = 16;
+  const scrollX = isControlPanel ? 0 : container.scrollLeft;
+  const scrollY = isControlPanel ? 0 : container.scrollTop;
+  const pixelScaleX = isControlPanel ? 16 : layoutScale?.x || getCanvasScale(container);
+  const pixelScaleY = isControlPanel ? 16 : layoutScale?.y || getCanvasScale(container);
   
-  let x = (event!.clientX - (isControlPanel ? rect.right : rect.left) - (pointerOffset!.current.x ?? 0)) / PIXEL_SIZE ;
-  let y = (event!.clientY - rect.top - (pointerOffset!.current.y ?? 0)) / PIXEL_SIZE ;
+  let x = (event!.clientX - (isControlPanel ? rect.right : rect.left) + scrollX - (pointerOffset!.current.x ?? 0)) / pixelScaleX ;
+  let y = (event!.clientY - rect.top + scrollY - (pointerOffset!.current.y ?? 0)) / pixelScaleY ;
 
   return { x, y };
+}
+
+export function getElementPixelScale(elements: Record<string, ElementAttr>, elementId: string): { x: number; y: number } {
+  const canvas = typeof document === "undefined" ? null : document.getElementById("canvas-container");
+  const fallback = getCanvasScale(canvas);
+  const element = findInTree(elements, elementId);
+  const parentId = element?.currentStateInTree?.parentElementID;
+  if (!parentId || typeof document === "undefined") return { x: fallback, y: fallback };
+
+  const parent = findInTree(elements, parentId);
+  const parentNode = Array.from(document.querySelectorAll<HTMLElement>("[data-element-id]"))
+    .find(node => node.dataset.elementId === parentId);
+  if (!parent || !parentNode) return { x: fallback, y: fallback };
+
+  const device = canvas?.dataset.gridDevice || "desktop";
+  const layoutSizes = parent.componentData?.layoutSizes as Partial<Record<string, { width: number; height: number }>> | undefined;
+  const basis = layoutSizes?.[device] || parent.size;
+  const rect = parentNode.getBoundingClientRect();
+  const x = basis?.width ? rect.width / basis.width : fallback;
+  const y = basis?.height ? rect.height / basis.height : fallback;
+  return { x: Number.isFinite(x) && x > 0 ? x : fallback, y: Number.isFinite(y) && y > 0 ? y : fallback };
+}
+
+export function getElementContentPixelScale(elements: Record<string, ElementAttr>, elementId: string): { x: number; y: number } {
+  const canvas = typeof document === "undefined" ? null : document.getElementById("canvas-container");
+  const fallback = getCanvasScale(canvas);
+  const element = findInTree(elements, elementId);
+  if (!element || typeof document === "undefined") return { x: fallback, y: fallback };
+
+  const node = Array.from(document.querySelectorAll<HTMLElement>("[data-element-id]"))
+    .find(item => item.dataset.elementId === elementId);
+  if (!node) return { x: fallback, y: fallback };
+  const device = canvas?.dataset.gridDevice || "desktop";
+  const layoutSizes = element.componentData?.layoutSizes as Partial<Record<string, { width: number; height: number }>> | undefined;
+  const basis = layoutSizes?.[device] || element.size;
+  const rect = node.getBoundingClientRect();
+  const x = basis?.width ? rect.width / basis.width : fallback;
+  const y = basis?.height ? rect.height / basis.height : fallback;
+  return { x: Number.isFinite(x) && x > 0 ? x : fallback, y: Number.isFinite(y) && y > 0 ? y : fallback };
 }

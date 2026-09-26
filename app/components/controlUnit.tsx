@@ -1,6 +1,6 @@
 import React, { useState, useRef, type SetStateAction } from "react";
 import { findInTree, removeElementFromTree, updateNestedElement } from "~/features/util";
-import type { BorderRadius, CurrentState, ElementAttr, Position } from "~/util/types";
+import type { BorderRadius, CurrentState, ElementAttr, Position, ResponsiveDevice } from "~/util/types";
 import { Link, Trash } from "lucide-react"
 import { AlignStartVertical, AlignEndVertical, AlignCenterHorizontal, AlignStartHorizontal, AlignCenterVertical, AlignEndHorizontal, Angle } from "lucide-react"
 import { ParentElementPreview } from "./elementPreview";
@@ -9,10 +9,13 @@ import { removeDefaultInputButton } from "~/features/pageEditing/constants";
 import { NumberInput } from "./numberInput";
 import { ColorPicker } from "antd";
 import TextSlider from "./valueSlider";
+import { CANVAS_GRID_WIDTHS, getCanvasGridHeight } from "~/util/layoutUnits";
 
 type ToolBoxProps = {
     currentElement: string | null;
     elements: Record<string, ElementAttr>;
+    pages: { id: string; name: string }[];
+    activePage: string;
     onUpdateStyle: React.Dispatch<React.SetStateAction<Record<string, ElementAttr>>>;
     onDeleteElement?: () => void;
     onDelinkElement?: (e: React.MouseEvent<HTMLElement>) => void;
@@ -22,12 +25,23 @@ type ToolBoxProps = {
     onSetControlPanelPosition: (event: React.PointerEvent<HTMLElement>) => void;
     onPointerDown: (event: React.PointerEvent<HTMLElement>) => void;
     onPointerUp: (event: React.PointerEvent<HTMLElement>) => void;
+    isDocked?: boolean;
+    responsiveDevice?: ResponsiveDevice;
 };
+
+function flattenElementTree(elements: Record<string, ElementAttr>): { id: string; element: ElementAttr }[] {
+    return Object.entries(elements).flatMap(([id, element]) => [
+        { id, element },
+        ...flattenElementTree(element.canvasChildren || {}),
+    ]);
+}
 
 
 export function ControlPanel({
     elements,
     currentElement,
+    pages,
+    activePage,
     onUpdateStyle,
     onPointerDown,
     onPointerUp,
@@ -37,8 +51,16 @@ export function ControlPanel({
     contolPanelPosition,
     iscontrolPanelVisible,
     onUpdateMinimized,
+    isDocked = false,
+    responsiveDevice,
 
 }: ToolBoxProps) {
+
+    const [showIndividualRadius, setShowIndividualRadius] = useState<boolean>(false);
+    const [isAppearanceExpanded, setIsAppearanceExpanded] = useState(false);
+    const appearanceRef = useRef<HTMLDivElement>(null);
+    const isDraggingRef = useRef(false);
+    const startPosRef = useRef({ x: 0, y: 0 });
 
     if (!currentElement) return null;
 
@@ -49,18 +71,24 @@ export function ControlPanel({
 
     const isTextElement = ["h1", "h2", "h3", "h4", "h5", "h6", "p", "span", "a","text"].includes(tag);
     const isButtonElement = ["button"].includes(tag) 
+    const isRoutableElement = ["button", "a"].includes(tag);
     const isImageElement = ["img", "image"].includes(tag);
     const isDivElement = ["div"].includes(tag);
     const isVideoElement = ["video"].includes(tag);
     const isAudioElement = ["audio"].includes(tag);
     const isMediaElement = isImageElement || isVideoElement || isAudioElement;
 
+    const parentElement = element.currentStateInTree?.isChildElement && element.currentStateInTree.parentElementID
+        ? findInTree(elements, element.currentStateInTree.parentElementID)
+        : undefined;
+    const canvasElement = typeof document === "undefined" ? null : document.getElementById("canvas-container");
+    const parentLayoutSizes = parentElement?.componentData?.layoutSizes as Partial<Record<"desktop" | "tablet" | "mobile", { width: number; height: number }>> | undefined;
+    const parentLayoutSize = parentLayoutSizes?.[responsiveDevice || "desktop"];
+    const layoutBasis = {
+        width: parentLayoutSize?.width || parentElement?.size?.width || Number(canvasElement?.getAttribute("data-grid-width")) || CANVAS_GRID_WIDTHS.desktop,
+        height: parentLayoutSize?.height || parentElement?.size?.height || getCanvasGridHeight(canvasElement),
+    };
 
-    const [showIndividualRadius, setShowIndividualRadius] = useState<boolean>(false);
-    const [isAppearanceExpanded, setIsAppearanceExpanded] = useState(false);
-    const appearanceRef = useRef<HTMLDivElement>(null);
-    const isDraggingRef = useRef(false);
-    const startPosRef = useRef({ x: 0, y: 0 });
 
     // Helper for current uniform radius value
     const currentUniformRadius = (
@@ -74,7 +102,7 @@ export function ControlPanel({
         isDraggingRef.current = false;
         startPosRef.current = { x: event.clientX, y: event.clientY };
 
-        (event.target as HTMLElement).setPointerCapture(event.pointerId);
+        event.currentTarget.setPointerCapture(event.pointerId);
 
         onPointerDown(event);
     };
@@ -208,16 +236,13 @@ export function ControlPanel({
         return (
             <button
                 type="button"
-                style={{
-                    top: contolPanelPosition.y!,
-                    right: contolPanelPosition.x!,
-                }}
-                onPointerDown={handlePointerDown}
-                onPointerMove={handlePointerMove}
-                onPointerUp={handlePointerUp}
+                style={isDocked ? undefined : { position: "fixed", top: contolPanelPosition.y!, right: contolPanelPosition.x! }}
+                onPointerDown={isDocked ? undefined : handlePointerDown}
+                onPointerMove={isDocked ? undefined : handlePointerMove}
+                onPointerUp={isDocked ? undefined : handlePointerUp}
                 onClick={handleClick}
                 title="Expand Inspector"
-                className="absolute w-10 h-10 rounded-full bg-[#1e1e1e] text-[#0c8ce9] border border-[#383838] shadow-2xl z-50 flex items-center justify-center hover:scale-110 hover:border-[#0c8ce9] transition-all cursor-grab active:cursor-grabbing"
+                className={`w-10 h-10 rounded-full bg-[#1e1e1e] text-[#0c8ce9] border border-[#383838] shadow-2xl z-50 flex items-center justify-center hover:scale-110 hover:border-[#0c8ce9] transition-all ${isDocked ? "relative mt-3 shrink-0" : "fixed cursor-grab active:cursor-grabbing"}`}
             >
                 {/* Sliders / Inspector Icon */}
                 <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -229,23 +254,35 @@ export function ControlPanel({
 
     return (
         <div
-            style={{
-                top: contolPanelPosition.y!,
-                right: contolPanelPosition.x!,
+            style={isDocked
+                ? { height: "min(600px, calc(100vh - 24px))", maxHeight: "calc(100vh - 24px)" }
+                : { position: "fixed", top: contolPanelPosition.y!, right: contolPanelPosition.x!, height: "min(600px, calc(100vh - 24px))" }}
+            data-control-panel-root
+            onPointerDown={event => {
+                event.stopPropagation();
+                if ((event.target as HTMLElement).closest("button[data-align]")) onPointerDown(event);
             }}
-            onPointerDown={(event) => onPointerDown(event)}
-            onPointerMove={(event) => onSetControlPanelPosition(event)}
-            onPointerUp={(event) => onPointerUp(event)}
-            className="absolute w-60 h-150 bg-[#2c2c2c] text-[#e5e5e5] border border-[#383838] rounded-lg hover:cursor-grab shadow-2xl z-50 flex flex-col font-sans text-[11px] select-none "
+            onPointerMove={event => event.stopPropagation()}
+            onPointerUp={event => event.stopPropagation()}
+            onPointerCancel={event => event.stopPropagation()}
+            className={`w-60 min-h-0 bg-[#2c2c2c] text-[#e5e5e5] border border-[#383838] rounded-lg shadow-2xl z-50 flex flex-col font-sans text-[11px] select-none ${isDocked ? "relative sticky top-3 self-start shrink-0" : "fixed"}`}
         >
             {/* Fixed Header */}
-            <Header onUpdateMinimized={onUpdateMinimized} />
+            <Header
+                onUpdateMinimized={onUpdateMinimized}
+                onPointerDown={isDocked ? undefined : onPointerDown}
+                onPointerMove={isDocked ? undefined : onSetControlPanelPosition}
+                onPointerUp={isDocked ? undefined : onPointerUp}
+                isDraggable={!isDocked}
+            />
 
             {/* Scrollable Body Content */}
-            <div className="flex-1 overflow-x-visible overflow-y-auto flex flex-col divide-y divide-[#383838]">
+            <div className="min-h-0 flex-1 overflow-x-visible overflow-y-auto flex flex-col divide-y divide-[#383838]">
                 <MediaAndTextInspector element={element} currentElement={currentElement} updateProp={updateProp} />
-                <PositionControl updateProp={updateProp} element={element} />
-                <LayoutSection element={element} updateProp={updateProp} />
+                {isRoutableElement && <ButtonRouteControl element={element} pages={pages} activePage={activePage} elements={elements} currentElement={currentElement} updateProp={updateProp} />}
+                <SectionAnchorControl element={element} currentElement={currentElement} updateProp={updateProp} />
+                <PositionControl updateProp={updateProp} element={element} basis={layoutBasis} />
+                <LayoutSection element={element} updateProp={updateProp} basis={layoutBasis} />
 
                 {/* COLLAPSIBLE APPEARANCE SECTION */}
                 <div ref={appearanceRef} className="flex flex-col bg-[#242424]">
@@ -297,11 +334,26 @@ export function ControlPanel({
 }
 
 
-export function Header({ onUpdateMinimized }: { onUpdateMinimized: (value: Boolean) => void }) {
+export function Header({
+    onUpdateMinimized,
+    onPointerDown,
+    onPointerMove,
+    onPointerUp,
+    isDraggable,
+}: {
+    onUpdateMinimized: (value: Boolean) => void;
+    onPointerDown?: (event: React.PointerEvent<HTMLElement>) => void;
+    onPointerMove?: (event: React.PointerEvent<HTMLElement>) => void;
+    onPointerUp?: (event: React.PointerEvent<HTMLElement>) => void;
+    isDraggable: boolean;
+}) {
     return (
         <div
-            onPointerDown={e => e.stopPropagation}
-            className="flex items-center justify-between px-3 py-2 bg-[#1e1e1e] border-b border-[#383838] cursor-grab active:cursor-grabbing"
+            onPointerDown={onPointerDown}
+            onPointerMove={onPointerMove}
+            onPointerUp={onPointerUp}
+            onPointerCancel={onPointerUp}
+            className={`flex items-center justify-between px-3 py-2 bg-[#1e1e1e] border-b border-[#383838] touch-none ${isDraggable ? "cursor-grab active:cursor-grabbing" : "cursor-default"}`}
         >
             <span className="font-semibold text-[11px] text-[#b3b3b3] uppercase tracking-wider">
                 Control Panel
@@ -325,6 +377,85 @@ export function Header({ onUpdateMinimized }: { onUpdateMinimized: (value: Boole
         </div>
     )
 
+}
+
+function InspectorField({ label, children }: { label: string; children: React.ReactNode }) {
+    return <label className="block text-[10px] text-[#a0a0a0]">
+        <span className="mb-1 block uppercase tracking-wider">{label}</span>
+        {children}
+    </label>;
+}
+
+function SectionAnchorControl({
+    element,
+    currentElement,
+    updateProp,
+}: {
+    element: ElementAttr;
+    currentElement: string;
+    updateProp: (key: keyof ElementAttr, value: any) => void;
+}) {
+    return <div className="flex flex-col gap-2.5 border-b border-[#383838] bg-[#242424] p-3">
+        <InspectorField label="Section name">
+            <input
+                value={element.sectionName || ""}
+                onChange={event => {
+                    const name = event.target.value;
+                    updateProp("sectionName", name);
+                    updateProp("sectionId", name ? `section-${currentElement}` : undefined);
+                }}
+                placeholder="e.g. About or Contact"
+                className="w-full rounded border border-[#444] bg-[#1e1e1e] px-2 py-1.5 text-white outline-none focus:border-[#0c8ce9]"
+            />
+        </InspectorField>
+    </div>;
+}
+
+function ButtonRouteControl({
+    element,
+    pages,
+    activePage,
+    elements,
+    currentElement,
+    updateProp,
+}: {
+    element: ElementAttr;
+    pages: { id: string; name: string }[];
+    activePage: string;
+    elements: Record<string, ElementAttr>;
+    currentElement: string;
+    updateProp: (key: keyof ElementAttr, value: any) => void;
+}) {
+    const sections = flattenElementTree(elements).filter(({ id, element: candidate }) => id !== currentElement && candidate.sectionId);
+    const pageIds = new Set(pages.map(page => page.id));
+    const selectedRoute = element.linkTarget || "";
+    const externalRoute = selectedRoute && !pageIds.has(selectedRoute) && !selectedRoute.startsWith("#") ? selectedRoute : "";
+
+    return <div className="flex flex-col gap-2.5 border-b border-[#383838] bg-[#242424] p-3">
+        <InspectorField label="Route to page">
+            <select
+                value={selectedRoute.startsWith("#") || pageIds.has(selectedRoute) ? selectedRoute : ""}
+                onChange={event => updateProp("linkTarget", event.target.value || undefined)}
+                className="w-full rounded border border-[#444] bg-[#1e1e1e] px-2 py-1.5 text-white outline-none focus:border-[#0c8ce9]"
+            >
+                <option value="">No navigation</option>
+                <optgroup label="Pages">
+                    {pages.filter(page => page.id !== activePage).map(page => <option key={page.id} value={page.id}>{page.name}</option>)}
+                </optgroup>
+                {sections.length > 0 && <optgroup label="Sections on this page">
+                    {sections.map(({ id, element: section }) => <option key={id} value={`#${section.sectionId}`}>{section.sectionName || section.content || "Section"}</option>)}
+                </optgroup>}
+            </select>
+        </InspectorField>
+        <InspectorField label="External link">
+            <input
+                value={externalRoute}
+                onChange={event => updateProp("linkTarget", event.target.value || undefined)}
+                placeholder="https:// or mailto:"
+                className="w-full rounded border border-[#444] bg-[#1e1e1e] px-2 py-1.5 text-white outline-none focus:border-[#0c8ce9]"
+            />
+        </InspectorField>
+    </div>;
 }
 
 export function Actions({ onDeleteElement }: Partial<ToolBoxProps>) {
@@ -629,9 +760,9 @@ export function LinkParentControl({ element, props }: { element: ElementAttr, pr
 
 
 
-export function PositionControl({ element, updateProp }: { element: ElementAttr, updateProp: (key: keyof ElementAttr, value: any, updateFromPrev?: boolean, min?: number) => void }) {
-
-    const PIXEL_SIZE = 16;
+export function PositionControl({ element, updateProp, basis }: { element: ElementAttr, basis: { width: number; height: number }, updateProp: (key: keyof ElementAttr, value: any, updateFromPrev?: boolean, min?: number) => void }) {
+    const xPercent = ((element.position?.x ?? 0) / basis.width) * 100;
+    const yPercent = ((element.position?.y ?? 0) / basis.height) * 100;
     return (
         <div className="p-3 border-b border-[#383838] flex flex-col gap-2.5">
             <p className="font-light text-[#b3b3b3]">Aligment</p>
@@ -689,27 +820,31 @@ export function PositionControl({ element, updateProp }: { element: ElementAttr,
             </div>
 
             {/* X / Y Inputs */}
-            <span className="font-light text-[#b3b3b3]">Position</span>
+            <span className="font-light text-[#b3b3b3]">Position · percentage of parent</span>
 
             <div className="grid grid-cols-2 gap-2">
                 <div className="flex items-center bg-[#1e1e1e] border border-[#383838] rounded px-2 py-1 gap-1 focus-within:border-[#0c8ce9]">
-                    <TextSlider text="X" onUpdate={(value) => updateProp("position", { x: value / PIXEL_SIZE }, true,)} />
+                    <TextSlider text="X" onUpdate={(value) => updateProp("position", { x: (value * basis.width) / 100 }, true)} />
 
                     {/* <span data-controlknob="x" className="text-[#808080]  w-full hover:cursor-ew-resize">X</span> */}
                     <NumberInput
-                        value={Math.round((element.position?.x ?? 0) * PIXEL_SIZE)}
-                        onChange={(value) => updateProp("position", { x: value / PIXEL_SIZE })}
+                        value={Number(xPercent.toFixed(1))}
+                        onChange={(value) => updateProp("position", { x: (value * basis.width) / 100 })}
+                        unit="%"
+                        step={0.1}
                         hideUpDownArrow={true}
                     />
 
                 </div>
                 <div className="flex items-center bg-[#1e1e1e] border border-[#383838] rounded px-2 py-1 gap-1 focus-within:border-[#0c8ce9]">
-                    <TextSlider text="Y" onUpdate={(value) => updateProp("position", { y: value / PIXEL_SIZE }, true)} />
+                    <TextSlider text="Y" onUpdate={(value) => updateProp("position", { y: (value * basis.height) / 100 }, true)} />
                     {/* <span data-controlknob="y" className="text-[#808080] w-20 hover:cursor-ew-resize font-medium">Y</span> */}
                     <NumberInput
-                        value={Math.round((element.position?.y ?? 0) * PIXEL_SIZE)}
+                        value={Number(yPercent.toFixed(1))}
                         hideUpDownArrow={true}
-                        onChange={(value) => updateProp("position", { y: value / PIXEL_SIZE })}
+                        onChange={(value) => updateProp("position", { y: (value * basis.height) / 100 })}
+                        unit="%"
+                        step={0.1}
                     />
 
                 </div>
@@ -724,12 +859,14 @@ export function PositionControl({ element, updateProp }: { element: ElementAttr,
 
 type LayoutSectionProps = {
     element: ElementAttr
+    basis: { width: number; height: number }
     updateProp: (key: keyof ElementAttr, value: ElementAttr[keyof ElementAttr], updateFromPrev?: boolean, min?: number) => void
 }
 
 
-export function LayoutSection({ element, updateProp }: LayoutSectionProps) {
-    const PIXEL_SIZE = 16;
+export function LayoutSection({ element, updateProp, basis }: LayoutSectionProps) {
+    const widthPercent = ((element.size?.width ?? 1) / basis.width) * 100;
+    const heightPercent = ((element.size?.height ?? 1) / basis.height) * 100;
     return (
         <div className="p-3 border-b border-[#383838] flex flex-col gap-2.5">
             <div className="flex items-center justify-between">
@@ -740,27 +877,31 @@ export function LayoutSection({ element, updateProp }: LayoutSectionProps) {
             <div className="grid grid-cols-2 gap-2">
                 <div className="flex items-center bg-[#1e1e1e] border border-[#383838] rounded px-2 py-1 gap-1 focus-within:border-[#0c8ce9]">
                     {/* <span data-controlknob="w" className={`text-[#808080] hover:cursor-ew-resize w-20 font-medium`}>W</span> */}
-                    <TextSlider text="W" onUpdate={(value) => updateProp("size", { width: value / 16 }, true, 0.1)} />
+                    <TextSlider text="W" onUpdate={(value) => updateProp("size", { width: (value * basis.width) / 100 }, true, 0.1)} />
 
                     <NumberInput
-                        value={Math.round((element.size?.width ?? 1) * 16)}
+                        value={Number(widthPercent.toFixed(1))}
                         hideUpDownArrow={true}
-                        onChange={(value) => updateProp("size", { width: Math.max(Number(value) / 16, 2) })
+                        onChange={(value) => updateProp("size", { width: Math.max(Number(value), 0.1) * basis.width / 100 })
                         }
+                        unit="%"
+                        step={0.1}
                     />
 
                 </div>
                 <div className="flex items-center bg-[#1e1e1e] border border-[#383838] rounded px-2 py-1 gap-1 focus-within:border-[#0c8ce9]">
                     {/* <span data-controlknob="h" className="text-[#808080] w-20 hover:cursor-ew-resize font-medium">H</span> */}
-                    <TextSlider text="H" onUpdate={(value) => updateProp("size", { height: value / 16 }, true, 0.1)} />
+                    <TextSlider text="H" onUpdate={(value) => updateProp("size", { height: (value * basis.height) / 100 }, true, 0.1)} />
 
 
                     <NumberInput
-                        value={Math.round((element.size?.height ?? 1) * 16)}
+                        value={Number(heightPercent.toFixed(1))}
                         hideUpDownArrow={true}
-                        onChange={(value) => updateProp("size", { height: Math.max(Number(value) / 16, 2) })
+                        onChange={(value) => updateProp("size", { height: Math.max(Number(value), 0.1) * basis.height / 100 })
 
                         }
+                        unit="%"
+                        step={0.1}
                     />
 
                 </div>

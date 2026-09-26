@@ -1,89 +1,97 @@
-import { CurrentState, type ElementAttr } from "~/util/types";
+import type { ElementAttr } from "~/util/types";
+import {
+  createContactFormComponent,
+  createNavigationComponent,
+  createProductGridComponent,
+  createTestimonialComponent,
+  normalizeTemplateElementTree,
+  type TemplateProduct,
+  type TemplateTheme,
+} from "./templateComponents";
 
-export type ReusablePresetId = "product-grid" | "contact-form" | "booking-card" | "testimonial" | "service-list";
+export type ReusablePresetId = "navigation" | "product-grid" | "contact-form" | "booking-card" | "testimonial" | "service-list";
 export const reusablePresets: { id: ReusablePresetId; name: string; description: string; icon: string }[] = [
-  { id: "product-grid", name: "Product cards", description: "A three item product row with photos, prices, and buttons.", icon: "▦" },
-  { id: "contact-form", name: "Get in touch form", description: "Name, email, message fields, and a send button.", icon: "✉" },
-  { id: "booking-card", name: "Booking callout", description: "A compact service card with duration, price, and booking action.", icon: "◷" },
-  { id: "testimonial", name: "Customer quote", description: "A styled review with a short attribution.", icon: "❝" },
-  { id: "service-list", name: "Service list", description: "Three clear service and price rows.", icon: "☰" },
+  { id: "navigation", name: "Site navigation", description: "A brand mark, page links, and a cart shortcut. Edit each link from the control panel.", icon: "⌂" },
+  { id: "product-grid", name: "Product cards", description: "Responsive product cards with stock photos, descriptions, prices, and bag links.", icon: "▦" },
+  { id: "contact-form", name: "Get in touch form", description: "A responsive contact section with name, email, message fields, and a send action.", icon: "✉" },
+  { id: "booking-card", name: "Booking options", description: "A compact set of service cards with session details and booking prices.", icon: "◷" },
+  { id: "testimonial", name: "Customer quote", description: "A styled review panel with a short attribution.", icon: "❝" },
+  { id: "service-list", name: "Service list", description: "Responsive service cards with descriptions, prices, and clear actions.", icon: "☰" },
 ];
 
-const images = [
+const theme: TemplateTheme = {
+  background: "#fbf8f2", surface: "#fffdf9", ink: "#28362c", muted: "#687268",
+  accent: "#315b45", line: "#e8e2d6", soft: "#f0ede3",
+};
+const photos = [
   "https://images.unsplash.com/photo-1490312278390-ab64016e0aa9?auto=format&fit=crop&w=800&q=80",
   "https://images.unsplash.com/photo-1603006905003-be475563bc59?auto=format&fit=crop&w=800&q=80",
   "https://images.unsplash.com/photo-1590736969955-71cc94901144?auto=format&fit=crop&w=800&q=80",
 ];
 
-function item(tag: ElementAttr["elementTag"], content: string, x: number, y: number, width: number, height: number, options: Partial<ElementAttr> & { sizePx?: number; color?: string; bold?: boolean } = {}): ElementAttr {
-  const { sizePx = 14, color = "#28332b", bold = false, ...props } = options;
+const sampleProducts: TemplateProduct[] = [
+  { name: "Handmade ceramic", image: photos[0], price: "R 420", description: "Made by hand in small batches." },
+  { name: "Sunday candle", image: photos[1], price: "R 350", description: "A soft, warm everyday scent." },
+  { name: "Linen everyday bag", image: photos[2], price: "R 680", description: "A useful companion for every day." },
+];
+
+function positionAtTop(element: ElementAttr, top: number): ElementAttr {
+  const offset = top - (element.position.y || 0);
+  const shiftDevice = (device: "tablet" | "mobile") => {
+    const override = element.responsiveStyles?.[device];
+    return override ? { ...override, position: { ...override.position, y: (override.position?.y || 0) + offset } } : undefined;
+  };
   return {
-    elementTag: tag, content, position: { x, y }, size: { width, height },
-    borderRadius: { radiusTL: 2, radiusTR: 2, radiusBL: 2, radiusBR: 2 }, borderColor: "transparent", borderWidth: 0, borderStyle: "solid",
-    backgroundColor: "transparent", useGradient: false, gradientStart: "#fff", gradientEnd: "#e5eee4", gradientAngle: 0,
-    currentState: CurrentState.IDLE, transformOrigin: "center", zIndex: 2, canvasChildren: {},
-    currentStateInTree: { isChildElement: false, parentElementID: null },
-    lgSreenStyle: { padding: tag === "img" ? 0 : 5, fontSize: sizePx, color, fontWeight: bold ? 700 : 400, fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif", lineHeight: 1.35 },
-    ...props,
+    ...element,
+    position: { ...element.position, y: top },
+    responsiveStyles: {
+      ...element.responsiveStyles,
+      tablet: shiftDevice("tablet"),
+      mobile: shiftDevice("mobile"),
+    },
   };
 }
 
 export function createReusableComponent(preset: ReusablePresetId, top: number): Record<string, ElementAttr> {
-  const result: Record<string, ElementAttr> = {};
-  const add = (element: ElementAttr) => { result[`component-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`] = element; };
-  const card = (x: number, y: number, width: number, height: number, backgroundColor = "#fff") => item("div", "", x, y, width, height, { backgroundColor, borderColor: "#e3e8e1", borderWidth: 1, borderStyle: "solid", borderRadius: { radiusTL: 3, radiusTR: 3, radiusBL: 3, radiusBR: 3 } });
-
-  if (preset === "product-grid") {
-    add(item("h2", "Featured products", 5, top, 60, 6, { sizePx: 25, bold: true }));
-    ["Handmade ceramic", "Sunday candle", "Linen everyday bag"].forEach((name, index) => {
-      const x = 5 + index * 30;
-      add(card(x, top + 7, 26, 33));
-      add(item("img", images[index], x, top + 7, 26, 19, { borderRadius: { radiusTL: 3, radiusTR: 3, radiusBL: 0, radiusBR: 0 } }));
-      add(item("h3", name, x + 1, top + 27, 24, 4, { sizePx: 14, bold: true }));
-      add(item("p", ["R 420", "R 350", "R 680"][index], x + 1, top + 31, 12, 4, { sizePx: 13, color: "#69756a" }));
-      add(item("button", "View item", x + 13, top + 31, 11, 4, { sizePx: 11, color: "#fff", bold: true, backgroundColor: "#315b45", linkTarget: "mailto:hello@example.com?subject=Product%20enquiry" }));
+  let element: ElementAttr;
+  if (preset === "navigation") {
+    element = createNavigationComponent({
+      siteName: "Your brand",
+      homeTarget: "",
+      links: [{ label: "Shop", target: "" }, { label: "About", target: "" }, { label: "Contact", target: "" }],
+      cartTarget: "",
+      theme,
+    });
+  } else if (preset === "contact-form") {
+    element = createContactFormComponent({
+      title: "Get in touch",
+      description: "Tell us what you have in mind. We usually reply within one business day.",
+      email: "hello@example.com",
+      theme,
+      y: { desktop: top, tablet: top, mobile: top },
+    });
+  } else if (preset === "testimonial") {
+    element = createTestimonialComponent({
+      quote: "The whole experience felt thoughtful, easy, and completely us.",
+      author: "Jamie M. · Happy customer",
+      theme,
+      y: { desktop: top, tablet: top, mobile: top },
+    });
+  } else {
+    const products = preset === "booking-card"
+      ? sampleProducts.slice(0, 1).map((product, index) => ({ ...product, name: ["A moment to reset"][index], price: "60 min · R 850", description: "A restorative session tailored to you." }))
+      : preset === "service-list"
+        ? sampleProducts.map((product, index) => ({ ...product, name: ["Brand consultation", "One-on-one session", "Complete package"][index], price: ["From R 950", "R 720 / hour", "Let's talk"][index], description: ["Find your focus and next steps.", "Thoughtful support for your goals.", "A clear plan, shaped around you."][index] }))
+        : sampleProducts;
+    element = createProductGridComponent({
+      title: preset === "booking-card" ? "Booking options" : preset === "service-list" ? "Our services" : "Featured products",
+      subtitle: preset === "booking-card" ? "Choose the time that works for you." : "Good things, chosen with care.",
+      products,
+      cartTarget: "mailto:hello@example.com?subject=Website%20enquiry",
+      theme,
+      y: { desktop: top, tablet: top, mobile: top },
     });
   }
-
-  if (preset === "contact-form") {
-    add(card(5, top, 54, 38, "#f5f7f3"));
-    add(item("h2", "Get in touch", 7, top + 2, 46, 6, { sizePx: 24, bold: true }));
-    add(item("p", "We usually reply within one business day.", 7, top + 8, 48, 4, { sizePx: 12, color: "#6b776d" }));
-    [["Your name", top + 14], ["Email address", top + 21], ["How can we help?", top + 28]].forEach(([label, y]) => {
-      const row = Number(y);
-      add(item("p", String(label), 7, row - 2, 45, 2.5, { sizePx: 11, bold: true, color: "#56645a" }));
-      const placeholder = label === "Your name" ? "Enter your name" : label === "Email address" ? "you@example.com" : "Write a short message";
-      const fieldTag = label === "How can we help?" ? "textarea" : "input";
-      add(item(fieldTag, placeholder, 7, row, 48, label === "How can we help?" ? 5 : 4, { inputType: label === "Email address" ? "email" : "text", backgroundColor: "#fff", borderColor: "#dce3da", borderWidth: 1, borderStyle: "solid" }));
-    });
-    add(item("button", "Send message", 7, top + 35, 21, 4.5, { sizePx: 12, color: "#fff", bold: true, backgroundColor: "#315b45", linkTarget: "mailto:hello@example.com?subject=Website%20enquiry" }));
-  }
-
-  if (preset === "booking-card") {
-    add(card(5, top, 42, 28, "#f6f4ec"));
-    add(item("p", "POPULAR SERVICE", 7, top + 2, 34, 3, { sizePx: 10, bold: true, color: "#55785e" }));
-    add(item("h2", "A moment to reset", 7, top + 6, 36, 5, { sizePx: 19, bold: true }));
-    add(item("p", "A restorative session tailored to you.", 7, top + 12, 36, 5, { sizePx: 12, color: "#6b776d" }));
-    add(item("p", "60 min · R 850", 7, top + 19, 19, 4, { sizePx: 13, bold: true }));
-    add(item("button", "Request a time →", 27, top + 19, 17, 5, { sizePx: 11, bold: true, color: "#fff", backgroundColor: "#55785e", linkTarget: "mailto:hello@example.com?subject=Booking%20request" }));
-  }
-
-  if (preset === "testimonial") {
-    add(card(5, top, 68, 23, "#edf2e9"));
-    add(item("p", "“The whole experience felt thoughtful, easy, and completely us. Our customers noticed the difference straight away.”", 8, top + 3, 62, 10, { sizePx: 17, color: "#33443a" }));
-    add(item("p", "★★★★★", 8, top + 14, 20, 3, { sizePx: 12, color: "#c18648", bold: true }));
-    add(item("p", "Jamie M. · Happy customer", 8, top + 18, 40, 3, { sizePx: 11, color: "#68756b" }));
-  }
-
-  if (preset === "service-list") {
-    add(item("h2", "Our services", 5, top, 60, 6, { sizePx: 25, bold: true }));
-    [["Brand consultation", "From R 950"], ["One-on-one session", "R 720 / hour"], ["Complete package", "Let's talk"]].forEach(([name, price], index) => {
-      const y = top + 8 + index * 8;
-      add(card(5, y, 67, 7));
-      add(item("h3", name, 7, y + 1, 42, 5, { sizePx: 14, bold: true }));
-      add(item("p", price, 50, y + 1, 20, 5, { sizePx: 12, bold: true, color: "#55785e" }));
-    });
-  }
-
-  return result;
+  const moved = positionAtTop(element, top);
+  return normalizeTemplateElementTree({ [`component-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`]: moved });
 }

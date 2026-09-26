@@ -76,6 +76,9 @@ export type ElementAttr = {
   sectionId?: string,
   sectionName?: string,
   responsiveStyles?: Partial<Record<ResponsiveDevice, ResponsiveElementStyle>>,
+  isComponentRoot?: boolean;
+  componentKind?: string;
+  componentData?: Record<string, unknown>;
   hidden?: boolean,
   inputType?: "text" | "email" | "tel";
 };

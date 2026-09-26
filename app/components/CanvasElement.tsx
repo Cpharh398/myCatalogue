@@ -6,6 +6,7 @@ import { updateElementStyle } from "~/features/util";
 import { DropVisualizer } from "./dropVisualizer";
 import { ResizingHandles } from "./resizingHandles";
 import { HoveredElementHighlight } from "./hoverUI";
+import { getCanvasScale } from "~/util/layoutUnits";
 
 type ElementProps = {
   id: string;
@@ -20,9 +21,14 @@ type ElementProps = {
   onNavigate?: (target: string) => void;
   selectedIds?: string[];
   onSelect?: (id: string, additive: boolean) => void;
+  onAddProduct?: (id: string) => void;
+  canvasGridWidth?: number;
+  canvasGridHeight?: number;
+  parentSize?: { width: number; height: number };
+  responsiveDevice?: "desktop" | "tablet" | "mobile";
 };
 
-export function CanvasElement({ id, element, elements, guide, setGuide, setElements, selectedElement, selectedTarget, isPreview = false, onNavigate, selectedIds = [], onSelect }: ElementProps) {
+export function CanvasElement({ id, element, elements, guide, setGuide, setElements, selectedElement, selectedTarget, isPreview = false, onNavigate, selectedIds = [], onSelect, onAddProduct, canvasGridWidth = 58, canvasGridHeight = 56, parentSize, responsiveDevice = "desktop" }: ElementProps) {
   const groupDrag = useRef<{ x: number; y: number; positions: Record<string, {x:number;y:number}> } | null>(null);
   const selectionOnlyPointer = useRef(false);
   const isMultiSelected = selectedIds.includes(id);
@@ -43,13 +49,18 @@ const getBackgroundStyle = () => {
   return element.backgroundColor || "transparent";
 };
 
+  const widthBasis = Math.max(0.01, parentSize?.width || canvasGridWidth);
+  const heightBasis = Math.max(0.01, parentSize?.height || canvasGridHeight);
+  const componentLayoutSizes = element.componentData?.layoutSizes as Partial<Record<"desktop" | "tablet" | "mobile", { width: number; height: number }>> | undefined;
+  const childParentSize = componentLayoutSizes?.[responsiveDevice] || element.size;
+
   const containerStyle: React.CSSProperties = {
     display: element.hidden ? "none" : undefined,
     position: "absolute",
-    top: `${element.position.y! * 16}px`,
-    left: `${element.position.x! * 16}px`,
-    width: `${element.size?.width! * 16}px`,
-    height: `${element.size?.height! * 16}px`,
+    top: `${((element.position.y || 0) / heightBasis) * 100}%`,
+    left: `${((element.position.x || 0) / widthBasis) * 100}%`,
+    width: `${((element.size?.width || 0) / widthBasis) * 100}%`,
+    height: `${((element.size?.height || 0) / heightBasis) * 100}%`,
     borderTopLeftRadius: `${element.borderRadius.radiusTL}%`,
     borderTopRightRadius: `${element.borderRadius.radiusTR}%`,
     borderBottomLeftRadius: `${element.borderRadius.radiusBL}%`,
@@ -71,7 +82,7 @@ const getBackgroundStyle = () => {
       style={containerStyle}
       onPointerDown={event => {
         if (isPreview) return;
-        if (event.shiftKey || event.metaKey || event.ctrlKey) { event.stopPropagation(); (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId); selectionOnlyPointer.current = true; onSelect?.(id, true); return; }
+        if (event.shiftKey || event.metaKey || event.ctrlKey) { event.preventDefault(); event.stopPropagation(); (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId); selectionOnlyPointer.current = true; onSelect?.(id, true); return; }
         if (selectedIds.length > 1 && isMultiSelected) {
           event.preventDefault(); event.stopPropagation();
           (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
@@ -82,13 +93,20 @@ const getBackgroundStyle = () => {
         if (selectionOnlyPointer.current) { event.stopPropagation(); return; }
         if (!groupDrag.current) return;
         event.stopPropagation();
-        const dx = (event.clientX - groupDrag.current.x) / 16; const dy = (event.clientY - groupDrag.current.y) / 16;
+        const scale = getCanvasScale(event.currentTarget);
+        const dx = (event.clientX - groupDrag.current.x) / scale; const dy = (event.clientY - groupDrag.current.y) / scale;
         const positions = groupDrag.current.positions;
         setElements(previous => { const next = { ...previous }; for (const [selectedId, position] of Object.entries(positions)) if (next[selectedId]) next[selectedId] = { ...next[selectedId], position: { x: position.x + dx, y: position.y + dy } }; return next; });
       }}
       onPointerUp={event => { if (selectionOnlyPointer.current) { event.stopPropagation(); selectionOnlyPointer.current = false; return; } if (groupDrag.current) { event.stopPropagation(); groupDrag.current = null; if ((event.currentTarget as HTMLElement).hasPointerCapture(event.pointerId)) (event.currentTarget as HTMLElement).releasePointerCapture(event.pointerId); } }}
       onPointerCancel={event => { if (selectionOnlyPointer.current) { event.stopPropagation(); selectionOnlyPointer.current = false; } if (groupDrag.current) { event.stopPropagation(); groupDrag.current = null; } }}
-      onClick={event => { if (isPreview && element.linkTarget) { event.stopPropagation(); onNavigate?.(element.linkTarget); } else if (!isPreview && !event.shiftKey && !event.metaKey && !event.ctrlKey && !(selectedIds.length > 1 && isMultiSelected)) onSelect?.(id, false); }}
+      onClick={event => {
+        if (isPreview && element.linkTarget) { event.stopPropagation(); onNavigate?.(element.linkTarget); return; }
+        if (!isPreview) {
+          event.stopPropagation();
+          if (!event.shiftKey && !event.metaKey && !event.ctrlKey && !(selectedIds.length > 1 && isMultiSelected)) onSelect?.(id, false);
+        }
+      }}
       className={`absolute touch-none transition-transform ${isMultiSelected ? "ring-2 ring-blue-500 ring-offset-2" : ""} ${element.currentState === CurrentState.IDLE ? "cursor-grab active:cursor-grabbing" : ""} flex flex-col justify-between`}
     >
 
@@ -101,11 +119,19 @@ const getBackgroundStyle = () => {
           className="absolute inset-0 pointer-events-none rounded border-2 border-dashed border-blue-500 bg-blue-500/10 z-50 flex items-center justify-center transition-all duration-150" />
       }
 
-      <ResizingHandles isVisible={element.showToolBox} />
-      <CanvasChildren guide={guide} setGuide={setGuide} selectedTarget={selectedTarget} selectedElement={selectedElement} children={element.canvasChildren!} setElements={setElements} />
+      <ResizingHandles isVisible={element.showToolBox && selectedTarget.current === id} />
+      <CanvasChildren guide={guide} setGuide={setGuide} selectedTarget={selectedTarget} selectedElement={selectedElement} children={element.canvasChildren!} setElements={setElements} isPreview={isPreview} onNavigate={onNavigate} selectedIds={selectedIds} onSelect={onSelect} onAddProduct={onAddProduct} canvasGridWidth={canvasGridWidth} canvasGridHeight={canvasGridHeight} parentSize={childParentSize} responsiveDevice={responsiveDevice} />
       <HoveredElementHighlight currentState={element.currentState} />
       <DropVisualizer canvasChildren={element.canvasChildren} />
       <RenderInnerContent Tag={Tag} element={element} id={id} isPreview={isPreview} />
+      {!isPreview && element.componentKind === "featured-products" && selectedTarget.current === id && <button
+        type="button"
+        aria-label="Add product"
+        title="Add product card"
+        onPointerDown={event => { event.preventDefault(); event.stopPropagation(); }}
+        onClick={event => { event.preventDefault(); event.stopPropagation(); onAddProduct?.(id); }}
+        className="absolute -right-3 -top-3 z-[60] grid h-8 w-8 place-items-center rounded-full border-2 border-white bg-[#315b45] text-xl font-semibold leading-none text-white shadow-lg hover:bg-[#254735]"
+      >+</button>}
       
 
     </div>
@@ -122,10 +148,19 @@ type canvasChildProps = {
   selectedTarget: React.RefObject<string | null>;
   guide: AlignmentGuide[]
   setGuide: React.Dispatch<React.SetStateAction<AlignmentGuide[]>>
+  isPreview?: boolean;
+  onNavigate?: (target: string) => void;
+  selectedIds?: string[];
+  onSelect?: (id: string, additive: boolean) => void;
+  onAddProduct?: (id: string) => void;
+  canvasGridWidth?: number;
+  canvasGridHeight?: number;
+  parentSize?: { width: number; height: number };
+  responsiveDevice?: "desktop" | "tablet" | "mobile";
 };
 
 
-export function CanvasChildren({ children, setElements, selectedElement, selectedTarget, guide, setGuide }: canvasChildProps) {
+export function CanvasChildren({ children, setElements, selectedElement, selectedTarget, guide, setGuide, isPreview = false, onNavigate, selectedIds = [], onSelect, onAddProduct, canvasGridWidth = 58, canvasGridHeight = 56, parentSize, responsiveDevice = "desktop" }: canvasChildProps) {
 
   const elements = children;
   if (children && setElements) {
@@ -140,6 +175,15 @@ export function CanvasChildren({ children, setElements, selectedElement, selecte
         selectedTarget={selectedTarget}
         selectedElement={selectedElement}
         element={element}
+        isPreview={isPreview}
+        onNavigate={onNavigate}
+        selectedIds={selectedIds}
+        onSelect={onSelect}
+        onAddProduct={onAddProduct}
+        canvasGridWidth={canvasGridWidth}
+        canvasGridHeight={canvasGridHeight}
+        parentSize={parentSize}
+        responsiveDevice={responsiveDevice}
       />
     ));
   };

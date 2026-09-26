@@ -1,21 +1,20 @@
 import { CurrentState, type ActiveToolType, type AlignmentGuide, type ElementAttr, type HoveredElementType, type initResizingProps, type pageEditProps, type Position } from "~/util/types";
 import { Modes } from "~/util/types";
-import { findInTree, findInTreeByState, getContainerRelativePosition, getRezingCursorStyle, removeElementFromTree, toggleToolBox, updateNestedElement } from "../util";
+import { findInTree, findInTreeByState, getContainerRelativePosition, getElementContentPixelScale, getElementPixelScale, getRezingCursorStyle, removeElementFromTree, toggleToolBox, updateNestedElement } from "../util";
+import { getCanvasScale } from "~/util/layoutUnits";
 import type { JSX } from "react/jsx-runtime";
 import type React from "react";
 
-const PIXEL_SIZE = 16;
-
-const resizeCanvasElement = ({ event, setGuide, elementState, pointerOffset, setElements, selectedResizeBorder, selectedTarget }: Partial<pageEditProps>) => {
+const resizeCanvasElement = ({ event, setGuide, elementState, pointerOffset, setElements, selectedResizeBorder, selectedTarget, elements }: Partial<pageEditProps>) => {
 
   if (elementState === CurrentState.RESIZING) {
 
     const cornerResizePoints = ["br", "tr", "bl", "tl"]
 
     if (cornerResizePoints.includes(selectedResizeBorder!.current!)) {
-      HandleCornerResize({ pointerOffset, setGuide, event, setElements, selectedResizeBorder, selectedTarget });
+      HandleCornerResize({ pointerOffset, setGuide, event, setElements, selectedResizeBorder, selectedTarget, elements });
     } else {
-      HandleEdgeResize({ pointerOffset, event, setGuide, setElements, selectedResizeBorder })
+      HandleEdgeResize({ pointerOffset, event, setGuide, setElements, selectedResizeBorder, elements })
     }
   }
 };
@@ -34,6 +33,7 @@ export const HandleCornerResize = (props: Partial<pageEditProps>) => {
 
   const rawDeltaX = props.event.clientX - prevX;
   const rawDeltaY = props.event.clientY - prevY;
+  const pixelScale = getElementPixelScale(props.elements || {}, selectedElementID);
 
   props.pointerOffset.current = { x: props.event.clientX, y: props.event.clientY };
 
@@ -70,8 +70,8 @@ export const HandleCornerResize = (props: Partial<pageEditProps>) => {
     const xDir = corner === "tr" || corner === "br" ? 1 : -1;
     const yDir = corner === "bl" || corner === "br" ? 1 : -1;
 
-    const gridDeltaX = ((rawDeltaX * xDir) / PIXEL_SIZE) * sensitivity;
-    const gridDeltaY = ((rawDeltaY * yDir) / PIXEL_SIZE) * sensitivity;
+    const gridDeltaX = ((rawDeltaX * xDir) / pixelScale.x) * sensitivity;
+    const gridDeltaY = ((rawDeltaY * yDir) / pixelScale.y) * sensitivity;
 
     const combinedDelta = (gridDeltaX + gridDeltaY) / 2;
 
@@ -146,6 +146,7 @@ export const HandleEdgeResize = (props: Partial<pageEditProps>) => {
 
   const rawDeltaX = props.event.clientX - prevX;
   const rawDeltaY = props.event.clientY - prevY;
+  const pixelScale = getElementPixelScale(props.elements || {}, selectedElementID);
 
   props.pointerOffset.current = { x: props.event.clientX, y: props.event.clientY };
 
@@ -181,20 +182,20 @@ export const HandleEdgeResize = (props: Partial<pageEditProps>) => {
 
     // 2. Compute raw relative size and position changes
     if (edge === "right") {
-      const deltaWidth = rawDeltaX / PIXEL_SIZE;
+      const deltaWidth = rawDeltaX / pixelScale.x;
       unsnappedWidth = Math.max(1, currentWidth + deltaWidth);
     } else if (edge === "left") {
-      const deltaWidth = -rawDeltaX / PIXEL_SIZE;
+      const deltaWidth = -rawDeltaX / pixelScale.x;
       unsnappedWidth = Math.max(1, currentWidth + deltaWidth);
       const actualWidthChange = unsnappedWidth - currentWidth;
       unsnappedX = currentX - actualWidthChange;
     }
 
     if (edge === "bottom") {
-      const deltaHeight = rawDeltaY / PIXEL_SIZE;
+      const deltaHeight = rawDeltaY / pixelScale.y;
       unsnappedHeight = Math.max(1, currentHeight + deltaHeight);
     } else if (edge === "top") {
-      const deltaHeight = -rawDeltaY / PIXEL_SIZE;
+      const deltaHeight = -rawDeltaY / pixelScale.y;
       unsnappedHeight = Math.max(1, currentHeight + deltaHeight);
       const actualHeightChange = unsnappedHeight - currentHeight;
       unsnappedY = currentY - actualHeightChange;
@@ -284,7 +285,7 @@ export const updateElementsPosition = ({
 
   if (!referenceDOM) return;
 
-  const { x, y } = getContainerRelativePosition(referenceDOM, event, pointerOffset);
+  const { x, y } = getContainerRelativePosition(referenceDOM, event, pointerOffset, false, getElementPixelScale(elements!, boxId));
   const parentAbsPos = (isChild && parentId)
     ? getAbsolutePosition(parentId, elements!)
     : { x: 0, y: 0 };
@@ -319,7 +320,7 @@ export const updateElementsPosition = ({
     zIndexUpdated!.current = true;
     updatedzIndex = zIndex + 1;
 
-    const { x: newX, y: newY } = getContainerRelativePosition(underCursor, event, pointerOffset);
+    const { x: newX, y: newY } = getContainerRelativePosition(underCursor, event, pointerOffset, false, getElementContentPixelScale(elements!, underCursorElementID));
 
     currentHovered!.current = {
       elementID: underCursorElementID,
@@ -386,7 +387,7 @@ export const handlePointerMove = ({ selectedTarget, selectedMode, event, pointer
   if (!selectedTarget!.current) return;
 
   if (selectedResizeBorder!.current !== null) {
-    resizeCanvasElement({ event, elementState, setGuide, pointerOffset, setElements, selectedResizeBorder, selectedTarget })
+    resizeCanvasElement({ event, elementState, setGuide, pointerOffset, setElements, selectedResizeBorder, selectedTarget, elements })
   } else {
     if (selectedMode!.current === Modes.GRAB) {
       updateElementsPosition({ event, pointerOffset, selectedTarget, setGuide, setElements, elementState, elements, currentHovered, zIndexUpdated, currentDragged });
@@ -443,8 +444,10 @@ export const createNewBox = ({ event, setElements, selectedMode, activeTool, set
 
   const boxID = crypto.randomUUID();
   const container = event!.currentTarget.getBoundingClientRect();
-  const x = (event!.clientX - container.left) / PIXEL_SIZE;
-  const y = (event!.clientY - container.top) / PIXEL_SIZE;
+  const canvas = event!.currentTarget as HTMLElement;
+  const pixelScale = getCanvasScale(canvas);
+  const x = (event!.clientX - container.left + canvas.scrollLeft) / pixelScale;
+  const y = (event!.clientY - container.top + canvas.scrollTop) / pixelScale;
   const target = event?.target as HTMLElement;
   target.setPointerCapture(event!.pointerId);
   const tagContent = initJSXTag(activeTool)
@@ -452,12 +455,8 @@ export const createNewBox = ({ event, setElements, selectedMode, activeTool, set
   const { tag, content, backgroundColor, customProps, initialSize } = tagContent;
   initialSize.x
 
-  setElements!((prev) => ({
+  setElements!((prev) => toggleToolBox({
     ...prev,
-    ...Object.keys(prev).reduce((acc, key) => {
-      acc[key] = { ...prev[key], showToolBox: false };
-      return acc;
-    }, {} as Record<string, ElementAttr>),
     [boxID]: {
       showToolBox: true,
       elementTag: tag,
@@ -491,7 +490,7 @@ export const createNewBox = ({ event, setElements, selectedMode, activeTool, set
       gradientStartPosition: 0,
       gradientEndPosition: 100,
     },
-  }));
+  }, boxID));
 
   initializeResizing({ target, selectedTarget, props: { event, lastSelected, pointerOffset, setElementState, selectedResizeBorder, cursorStyle, setElements }, resizePoint: "br", elementId: boxID });
   setActiveTool!({ tool: Modes.GRAB });

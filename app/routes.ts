@@ -4,4 +4,5 @@ export default [
   index("routes/home.tsx"),
   route("myworkspace", "routes/myworkspace.tsx"),
   route("editor", "routes/editor.tsx"),
+  route(":siteSlug", "routes/publishedSite.tsx"),
 ] satisfies RouteConfig;

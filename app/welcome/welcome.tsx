@@ -7,20 +7,30 @@ import { ControlPanel } from "~/components/controlUnit";
 import { AlignmentGuidesOverlay } from "~/components/guidLines";
 import { HandleControlPanelPointerDown, HandleControlPanelPointerUp, HandlePointerMove } from "~/features/controlPanel/service";
 import { handlePointerMove, handlePointerDownContainer, handlePointerUp, removeElement, } from "~/features/pageEditing/service"
-import { findInTree, getContainerRelativePosition, removeElementFromTree, updateElementStyle } from "~/features/util";
+import { findInTree, getContainerRelativePosition, removeElementFromTree, updateElementStyle, updateNestedElement } from "~/features/util";
 import { useCanvasKeybindings } from "~/hooks/useCanvasKeyBindings";
 import { type ActiveToolType, type AlignmentGuide, type ElementAttr, type HoveredElementType, type Position, type ResponsiveDevice, CurrentState, Modes } from "~/util/types"
 import { createSiteTemplate, siteStarters, type StarterTemplateId } from "~/util/siteTemplates";
+import { appendFeaturedProduct } from "~/util/templateComponents";
+import { CANVAS_GRID_WIDTHS } from "~/util/layoutUnits";
 import { createReusableComponent, reusablePresets, type ReusablePresetId } from "~/util/reusableComponents";
 import { readSiteProjects, saveSiteProject } from "~/util/siteStorage";
 
 const responsiveFields = ["position", "size", "lgSreenStyle", "backgroundColor", "borderRadius", "borderColor", "borderWidth", "borderStyle", "useGradient", "gradientStart", "gradientEnd", "gradientAngle", "hidden"] as const;
+const editorTutorialSteps = [
+  { target: '[data-tour="toolbar"]', title: "Add and arrange content", body: "Choose a tool here to add text, images, buttons, and ready-made sections to your page." },
+  { target: '[data-tour="pages"]', title: "Build more pages", body: "Create pages for your shop, services, cart, checkout, and anything else your business needs." },
+  { target: '[data-tour="canvas"]', title: "Edit your website", body: "Select an item to edit it. Drag it to reposition, and use the handles to resize. Shift-click a built-in section to select it as a whole." },
+  { target: '[data-tour="library"]', title: "Reuse useful sections", body: "Open the library to add common website components or save your own selections for later." },
+  { target: '[data-tour="preview"]', title: "Check every screen size", body: "Preview the site on desktop, tablet, and mobile. You can also edit device-specific layouts." },
+  { target: '[data-tour="publish"]', title: "Publish your site", body: "Publish a local preview URL that you can open in this development workspace." },
+];
 
 function applyResponsiveStyles(elements: Record<string, ElementAttr>, device: ResponsiveDevice): Record<string, ElementAttr> {
   return Object.fromEntries(Object.entries(elements).map(([id, element]) => {
     const style = element.responsiveStyles?.[device] || {};
-    const { hidden, ...override } = style;
-    return [id, { ...element, ...override, hidden: hidden ?? element.hidden, canvasChildren: element.canvasChildren ? applyResponsiveStyles(element.canvasChildren, device) : {} }];
+    const { hidden, lgSreenStyle, ...override } = style;
+    return [id, { ...element, ...override, lgSreenStyle: { ...element.lgSreenStyle, ...lgSreenStyle }, hidden: hidden ?? element.hidden, canvasChildren: element.canvasChildren ? applyResponsiveStyles(element.canvasChildren, device) : {} }];
   }));
 }
 
@@ -42,6 +52,19 @@ function persistResponsiveStyles(
       if (JSON.stringify(edited[key]) !== JSON.stringify(prior[key])) deviceStyle[key] = edited[key];
     }
     updated.responsiveStyles = { ...original.responsiveStyles, [device]: deviceStyle };
+    const originalLayoutSizes = original.componentData?.layoutSizes as Record<string, { width: number; height: number }> | undefined;
+    const editedLayoutSizes = edited.componentData?.layoutSizes as Record<string, { width: number; height: number }> | undefined;
+    if (editedLayoutSizes && JSON.stringify(editedLayoutSizes) !== JSON.stringify(originalLayoutSizes)) {
+      updated.size = { width: updated.size?.width ?? editedLayoutSizes.desktop.width, height: editedLayoutSizes.desktop.height };
+      updated.responsiveStyles = { ...updated.responsiveStyles };
+      for (const sizeDevice of ["tablet", "mobile"] as const) {
+        const layoutSize = editedLayoutSizes[sizeDevice];
+        if (layoutSize) updated.responsiveStyles[sizeDevice] = {
+          ...updated.responsiveStyles[sizeDevice],
+          size: { width: updated.responsiveStyles[sizeDevice]?.size?.width ?? layoutSize.width, height: layoutSize.height },
+        };
+      }
+    }
     updated.canvasChildren = persistResponsiveStyles(original.canvasChildren || {}, prior.canvasChildren || {}, edited.canvasChildren || {}, device);
     result[id] = updated;
   }
@@ -64,9 +87,12 @@ export function Canvas() {
     try { return JSON.parse(localStorage.getItem("mycatalogue-pages") || "null") || [{id:"home",name:"Home",elements:{}}]; } catch { return [{id:"home",name:"Home",elements:{}}]; }
   });
   const [activePage, setActivePage] = useState(() => typeof window === "undefined" ? "home" : localStorage.getItem("mycatalogue-active") || "home");
-  const [showTutorial, setShowTutorial] = useState(false);
+  const [tutorialStep, setTutorialStep] = useState<number | null>(null);
+  const [tutorialTargetRect, setTutorialTargetRect] = useState<DOMRect | null>(null);
   const [showTemplates, setShowTemplates] = useState(false);
   const [showPublish, setShowPublish] = useState(false);
+  const [publishing, setPublishing] = useState(false);
+  const [publishError, setPublishError] = useState("");
   const [siteName, setSiteName] = useState(() => typeof window === "undefined" ? "Untitled site" : localStorage.getItem("mycatalogue-site-name") || "Untitled site");
   const [pageHeight, setPageHeight] = useState(100);
   const [isPreview, setIsPreview] = useState(false);
@@ -92,6 +118,33 @@ export function Canvas() {
   const [versions, setVersions] = useState<SavedVersion[]>(() => { if (typeof window === "undefined") return []; try { return JSON.parse(localStorage.getItem("mycatalogue-versions") || "[]"); } catch { return []; } });
   const [customComponents, setCustomComponents] = useState<CustomComponent[]>(() => { if (typeof window === "undefined") return []; try { return JSON.parse(localStorage.getItem("mycatalogue-components") || "[]"); } catch { return []; } });
   const [componentName, setComponentName] = useState("");
+  const canvasRef = useRef<HTMLDivElement>(null);
+  const [canvasWidth, setCanvasWidth] = useState(0);
+  const [tutorialReady, setTutorialReady] = useState(false);
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const measure = () => setCanvasWidth(canvas.clientWidth);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(canvas);
+    return () => observer.disconnect();
+  }, []);
+  useEffect(() => {
+    setTutorialReady(true);
+    if (!localStorage.getItem("mycatalogue-editor-tour-complete")) setTutorialStep(0);
+  }, []);
+  useEffect(() => {
+    if (tutorialStep === null) return;
+    const updateTarget = () => {
+      const target = document.querySelector(editorTutorialSteps[tutorialStep]?.target);
+      setTutorialTargetRect(target?.getBoundingClientRect() || null);
+    };
+    const frame = requestAnimationFrame(updateTarget);
+    window.addEventListener("resize", updateTarget);
+    window.addEventListener("scroll", updateTarget, true);
+    return () => { cancelAnimationFrame(frame); window.removeEventListener("resize", updateTarget); window.removeEventListener("scroll", updateTarget, true); };
+  }, [tutorialStep]);
   useEffect(() => {
     localStorage.setItem("mycatalogue-elements", JSON.stringify(elements));
     localStorage.setItem("mycatalogue-site-name", siteName);
@@ -115,7 +168,8 @@ export function Canvas() {
   useEffect(() => { localStorage.setItem("mycatalogue-catalogue", JSON.stringify(catalogue)); }, [catalogue]);
   useEffect(() => { localStorage.setItem("mycatalogue-versions", JSON.stringify(versions)); }, [versions]);
   useEffect(() => { localStorage.setItem("mycatalogue-components", JSON.stringify(customComponents)); }, [customComponents]);
-  const displayElements = responsiveEditDevice ? applyResponsiveStyles(elements, responsiveEditDevice) : elements;
+  const responsiveDisplayDevice: ResponsiveDevice | null = responsiveEditDevice || (isPreview && previewDevice !== "desktop" ? previewDevice : null);
+  const displayElements = responsiveDisplayDevice ? applyResponsiveStyles(elements, responsiveDisplayDevice) : elements;
   const setCanvasElements: React.Dispatch<React.SetStateAction<Record<string, ElementAttr>>> = action => {
     if (!responsiveEditDevice) { setElements(action); return; }
     setElements(base => {
@@ -124,6 +178,12 @@ export function Canvas() {
       return persistResponsiveStyles(base, previous, next, responsiveEditDevice);
     });
   };
+  const canvasGridWidth = CANVAS_GRID_WIDTHS[responsiveDisplayDevice || "desktop"];
+  const canvasViewportHeight = canvasRef.current?.clientHeight || (typeof window !== "undefined" ? window.innerHeight : 900);
+  const canvasScale = canvasWidth > 0 ? canvasWidth / canvasGridWidth : 16;
+  const canvasContentBottomUnits = Math.max(0, ...Object.values(displayElements).map(element => (element.position.y || 0) + (element.size?.height || 0)));
+  const canvasContentHeight = Math.max(pageHeight * canvasViewportHeight / 100, canvasViewportHeight, (canvasContentBottomUnits + 4) * canvasScale);
+  const canvasGridHeight = canvasContentHeight / canvasScale;
   useEffect(() => {
     if (skipHistory.current) { skipHistory.current = false; lastElements.current = elements; return; }
     if (JSON.stringify(lastElements.current) === JSON.stringify(elements)) return;
@@ -166,10 +226,20 @@ export function Canvas() {
     setCanvasElements(old => ({ ...old, ...additions }));
     setActiveSidebar(null);
   };
+  const addProductToGrid = (id: string) => setCanvasElements(old => updateNestedElement(old, id, element => appendFeaturedProduct(element, id, responsiveEditDevice || "desktop")));
   const selectElement = (id: string, additive: boolean) => {
-    if (additive) setSelectedIds(old => old.includes(id) ? old.filter(item => item !== id) : [...old, id]);
-    else setSelectedIds([id]);
-    selectedTarget.current = id; lastSelected.current = id;
+    let targetId = id;
+    if (additive) {
+      let current = findInTree(displayElements, id);
+      let parentId = current?.currentStateInTree?.parentElementID || null;
+      while (parentId) {
+        const parent = findInTree(displayElements, parentId);
+        if (parent?.isComponentRoot) { targetId = parentId; break; }
+        parentId = parent?.currentStateInTree?.parentElementID || null;
+      }
+      setSelectedIds(old => old.includes(targetId) ? old.filter(item => item !== targetId) : [...old, targetId]);
+    } else setSelectedIds([targetId]);
+    selectedTarget.current = targetId; lastSelected.current = targetId;
   };
   const switchPage = (id:string) => {
     setPages(old => old.map(page => page.id === activePage ? {...page,elements} : page));
@@ -202,6 +272,27 @@ export function Canvas() {
     }
     switchPage(target);
   };
+  const publishSite = async () => {
+    setPublishing(true);
+    setPublishError("");
+    try {
+      const publishPages = pages.map(page => page.id === activePage ? { ...page, elements } : page);
+      const response = await fetch("/api/publish", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: siteName, pages: publishPages, templateId: localStorage.getItem("mycatalogue-site-template") }),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "The publishing service could not publish this site.");
+      const targetUrl = typeof result.url === "string" ? result.url : `/${result.slug}`;
+      setShowPublish(false);
+      window.location.assign(targetUrl);
+    } catch (error) {
+      setPublishError(error instanceof Error ? error.message : "The publishing service could not publish this site.");
+    } finally {
+      setPublishing(false);
+    }
+  };
   const chooseTemplate = (templateId: StarterTemplateId) => {
     const starter = siteStarters.find(item => item.id === templateId)!;
     const generated = createSiteTemplate(templateId);
@@ -213,7 +304,12 @@ export function Canvas() {
       setSiteName(generated.siteName);
     } else {
       const ids = Object.fromEntries(generated.pages.map(page => [page.id, `${page.id}-${Date.now().toString(36)}`]));
-      const addedPages = generated.pages.map(page => ({ ...page, id: ids[page.id], elements: Object.fromEntries(Object.entries(page.elements).map(([id, element]) => [id, { ...element, linkTarget: element.linkTarget ? (ids[element.linkTarget] || element.linkTarget) : undefined }])) }));
+      const remapElementLinks = (tree: Record<string, ElementAttr>): Record<string, ElementAttr> => Object.fromEntries(Object.entries(tree).map(([id, element]) => [id, {
+        ...element,
+        linkTarget: element.linkTarget ? (ids[element.linkTarget] || element.linkTarget) : undefined,
+        canvasChildren: remapElementLinks(element.canvasChildren || {}),
+      }]));
+      const addedPages = generated.pages.map(page => ({ ...page, id: ids[page.id], elements: remapElementLinks(page.elements) }));
       setPages(old => [...old, ...addedPages]);
       setActivePage(addedPages[0].id);
       setElements(addedPages[0].elements);
@@ -222,13 +318,15 @@ export function Canvas() {
     localStorage.setItem("mycatalogue-site-template", starter.id);
     setShowTemplates(false);
   };
-  const [elementState, setElementState] = useState<CurrentState>(CurrentState.DRAG);
+  const [elementState, setElementState] = useState<CurrentState>(CurrentState.IDLE);
   const [guide, setGuide] = useState<AlignmentGuide[]>([]);
   const [activeTool, setActiveTool] = useState<ActiveToolType>({tool:Modes.GRAB});
   const selectedMode = useRef<Modes>(Modes.GRAB);
   const selectedTarget = useRef<string | null>(null);
   const lastSelected = useRef<string | null>(null);
   const pointerOffset = useRef<Position>({ x: 0, y: 0 });
+  const canvasPointerStart = useRef<Position | null>(null);
+  const isCanvasDragging = useRef(false);
   const selectedResizeBorder = useRef<string | null>(null);
   const cursorStyle = useRef<"cursor-ns-resize" | "cursor-ew-resize" | "cursor-nwse-resize" | "cursor-nesw-resize" | null>(null);
   const currentHovered = useRef<HoveredElementType | null>(null);
@@ -326,51 +424,69 @@ function parentYToCanvas(childY: number, parentY: number): number {
     </div>
   ) : null;
 
+  const currentTutorialStep = tutorialStep === null ? null : editorTutorialSteps[tutorialStep];
+  const tutorialPopupPosition = tutorialTargetRect && typeof window !== "undefined" ? {
+    left: Math.max(16, Math.min(window.innerWidth - 376, tutorialTargetRect.left + tutorialTargetRect.width / 2 - 180)),
+    top: tutorialTargetRect.bottom + 18 + 250 < window.innerHeight ? tutorialTargetRect.bottom + 18 : Math.max(16, tutorialTargetRect.top - 270),
+  } : null;
+  const publishSlugPreview = siteName.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 64).replace(/-$/g, "") || "my-site";
+  const publishRoutePreview = ["editor", "myworkspace", "api"].includes(publishSlugPreview) ? `${publishSlugPreview}-site` : publishSlugPreview;
+
   return (
     <div className="h-screen w-screen overflow-hidden bg-[#f5f3ed]">
 
-      <div className="relative h-full w-full pl-[68px] flex min-w-0 overflow-hidden">
+      <div className="relative h-full w-full pl-[68px] flex min-w-0 overflow-hidden" style={responsiveEditDevice ? { justifyContent: "flex-start", gap: 12, overflowX: "auto" } : undefined}>
       <div
       id="canvas-container"
+      ref={canvasRef}
+      data-tour="canvas"
+      data-grid-width={canvasGridWidth}
+      data-grid-device={responsiveDisplayDevice || "desktop"}
       onPointerDown={event => {
         if (isPreview) return;
         const target = event.target as HTMLElement;
         const elementNode = target.closest("[data-element-id]");
+        canvasPointerStart.current = { x: event.clientX, y: event.clientY };
+        isCanvasDragging.current = false;
         if (elementNode && !event.shiftKey && !event.metaKey && !event.ctrlKey) {
           const id = elementNode.getAttribute("data-element-id");
           if (id) selectElement(id, false);
-        } else if (!elementNode && target.id === "canvas-container") {
+        } else if (!elementNode && target.closest("#canvas-stage")) {
           setSelectedIds([]);
+          selectedTarget.current = null;
+          lastSelected.current = null;
         }
         if (!target.dataset.resizepoint) {
           try { event.currentTarget.setPointerCapture(event.pointerId); } catch { /* Pointer may already be captured by a resize handle. */ }
         }
         handlePointerDownContainer({ event, lastSelected, elements: displayElements, cursorStyle, setElements: setCanvasElements, selectedMode, selectedTarget, pointerOffset, activeTool, setActiveTool, setElementState, selectedResizeBorder });
       }}
-      onPointerMove={event => !isPreview && handlePointerMove({ event, pointerOffset, selectedMode, elements: displayElements, selectedTarget, setElements: setCanvasElements, elementState, selectedResizeBorder, currentHovered, setGuide, zIndexUpdated, currentDragged })}
-      onPointerUp={event => !isPreview && handlePointerUp({ event, setGuide, selectedMode, selectedTarget, setElementState, cursorStyle, selectedResizeBorder, setElements: setCanvasElements, currentHovered, elements: displayElements, currentDragged })}
-      onPointerCancel={event => { if (isPreview) return; currentHovered.current = null; currentDragged.current = null; handlePointerUp({ event, setGuide, selectedMode, selectedTarget, setElementState, cursorStyle, selectedResizeBorder, setElements: setCanvasElements, currentHovered, elements: displayElements, currentDragged }); }}
-      style={{ width: (isPreview || responsiveEditDevice) && previewDevice !== "desktop" ? (previewDevice === "tablet" ? "768px" : "390px") : "100%", maxWidth: "100%", marginInline: "auto", borderLeft: (isPreview || responsiveEditDevice) && previewDevice !== "desktop" ? "1px solid #cbd5e1" : undefined, borderRight: (isPreview || responsiveEditDevice) && previewDevice !== "desktop" ? "1px solid #cbd5e1" : undefined }}
-      className={`bg-slate-100 w-full h-full relative overflow-auto select-none  ${cursorStyle.current !== null ? cursorStyle.current : activeTool.tool != Modes.GRAB ? "cursor-crosshair" : ""}`}
+      onPointerMove={event => {
+        if (isPreview) return;
+        if (selectedResizeBorder.current === null && selectedTarget.current && !isCanvasDragging.current) {
+          const start = canvasPointerStart.current;
+          if (!start || Math.hypot(event.clientX - start.x!, event.clientY - start.y!) < 4) return;
+          isCanvasDragging.current = true;
+        }
+        handlePointerMove({ event, pointerOffset, selectedMode, elements: displayElements, selectedTarget, setElements: setCanvasElements, elementState, selectedResizeBorder, currentHovered, setGuide, zIndexUpdated, currentDragged });
+      }}
+      onPointerUp={event => {
+        if (isPreview) return;
+        handlePointerUp({ event, setGuide, selectedMode, selectedTarget, setElementState, cursorStyle, selectedResizeBorder, setElements: setCanvasElements, currentHovered, elements: displayElements, currentDragged });
+        canvasPointerStart.current = null;
+        isCanvasDragging.current = false;
+      }}
+      onPointerCancel={event => {
+        if (isPreview) return;
+        currentHovered.current = null;
+        currentDragged.current = null;
+        handlePointerUp({ event, setGuide, selectedMode, selectedTarget, setElementState, cursorStyle, selectedResizeBorder, setElements: setCanvasElements, currentHovered, elements: displayElements, currentDragged });
+        canvasPointerStart.current = null;
+        isCanvasDragging.current = false;
+      }}
+      style={{ width: (isPreview || responsiveEditDevice) && previewDevice !== "desktop" ? (previewDevice === "tablet" ? "768px" : "390px") : "100%", maxWidth: responsiveEditDevice ? "none" : "100%", flexShrink: responsiveEditDevice ? 0 : undefined, marginInline: responsiveEditDevice ? 0 : "auto", borderLeft: (isPreview || responsiveEditDevice) && previewDevice !== "desktop" ? "1px solid #cbd5e1" : undefined, borderRight: (isPreview || responsiveEditDevice) && previewDevice !== "desktop" ? "1px solid #cbd5e1" : undefined }}
+      className={`bg-slate-100 min-w-0 w-full h-full relative overflow-auto select-none  ${cursorStyle.current !== null ? cursorStyle.current : activeTool.tool != Modes.GRAB ? "cursor-crosshair" : ""}`}
     >
-
-      <div className="bg-slate-300/35 pointer-events-none inset-0 absolute" />
-      <AlignmentGuidesOverlay guides={guide} />
-      {
-        !isPreview && lastSelected.current &&
-        <ControlPanel
-          contolPanelPosition={controlPanelPosition}
-          iscontrolPanelVisible={iscontrolPanelVisible}
-          onUpdateMinimized={(value)=> setIscontrolPanelVisible(value)}
-          onPointerDown={(event)=> HandleControlPanelPointerDown({event, isControlPanelSelected, pointerOffset, setControlPanelPosition, elements: displayElements, lastSelected, setElements: setCanvasElements })}
-          onPointerUp={(event)=> HandleControlPanelPointerUp({event, isControlPanelSelected,pointerOffset, setControlPanelPosition,  elements: displayElements, lastSelected})}
-          onSetControlPanelPosition={(event)=> HandlePointerMove({event,isControlPanelSelected, pointerOffset, setControlPanelPosition, lastSelected, elements: displayElements, setElements: setCanvasElements})}
-          currentElement={lastSelected.current}
-          elements={displayElements}
-          onUpdateStyle={setCanvasElements}
-          onDeleteElement={() => setElements((prev) => removeElementFromTree({ elements: prev, targetId:lastSelected.current! }))}
-          onDelinkElement={handleDelinkeElement} />
-      }
 
       <Toolbar
         activeTool={activeTool}
@@ -382,7 +498,7 @@ function parentYToCanvas(childY: number, parentY: number): number {
         onPublish={() => setShowPublish(true)}
         onDashboard={() => { window.location.assign("/myworkspace"); }}
         onPreview={() => { setIsPreview(current => !current); setResponsiveEditDevice(null); }}
-        onTutorial={() => setShowTutorial(true)}
+        onTutorial={() => setTutorialStep(0)}
         isPreview={isPreview}
         previewDevice={previewDevice}
         onSetPreviewDevice={device => { setPreviewDevice(device); if (responsiveEditDevice) setResponsiveEditDevice(device === "desktop" ? null : device); }}
@@ -391,33 +507,63 @@ function parentYToCanvas(childY: number, parentY: number): number {
         onExitResponsiveEdit={() => { setResponsiveEditDevice(null); setPreviewDevice("desktop"); }}
       />
 
-      {Object.entries(displayElements).map(([id, element]) => (
-        <CanvasElement
-          selectedTarget={selectedTarget}
-          key={id}
-          guide={guide}
-          setGuide={setGuide}
-          id={id}
-          elements={displayElements}
-          selectedElement={selectedTarget.current!}
-          element={element}
-          setElements={setCanvasElements}
-          isPreview={isPreview}
-          onNavigate={navigateTo}
-          selectedIds={selectedIds}
-          onSelect={selectElement}
-        />
-      ))}
-      <div className="pointer-events-none absolute left-1/2 -translate-x-1/2 top-5 z-10 bg-white/90 border border-slate-200 rounded-lg px-3 py-1.5 text-xs text-slate-500">{pages.find(page=>page.id===activePage)?.name || "Home"} · {isPreview?(previewDevice+" preview"):responsiveEditDevice?("Editing "+responsiveEditDevice+" layout · changes are device-specific"):selectedIds.length>1?(selectedIds.length+" selected · drag any to move as a group"):"Editing · Shift-click to select multiple"}</div>
-      <div className="pointer-events-none" style={{height:Math.max(pageHeight*(typeof window!=="undefined"?window.innerHeight:900)/100,typeof window!=="undefined"?window.innerHeight:900)}}/>
+      <div id="canvas-stage" className="relative w-full" style={{ height: canvasContentHeight }}>
+        <div className="bg-slate-300/35 pointer-events-none inset-0 absolute" />
+        <AlignmentGuidesOverlay guides={guide} />
+        {Object.entries(displayElements).map(([id, element]) => (
+          <CanvasElement
+            selectedTarget={selectedTarget}
+            key={id}
+            guide={guide}
+            setGuide={setGuide}
+            id={id}
+            elements={displayElements}
+            selectedElement={selectedTarget.current!}
+            element={element}
+            setElements={setCanvasElements}
+            isPreview={isPreview}
+            onNavigate={navigateTo}
+            selectedIds={selectedIds}
+            onSelect={selectElement}
+            onAddProduct={addProductToGrid}
+            canvasGridWidth={canvasGridWidth}
+            canvasGridHeight={canvasGridHeight}
+            responsiveDevice={responsiveDisplayDevice || "desktop"}
+          />
+        ))}
+        <div className="pointer-events-none absolute left-1/2 -translate-x-1/2 top-5 z-10 bg-white/90 border border-slate-200 rounded-lg px-3 py-1.5 text-xs text-slate-500">{pages.find(page=>page.id===activePage)?.name || "Home"} · {isPreview?(previewDevice+" preview"):responsiveEditDevice?("Editing "+responsiveEditDevice+" layout · changes are device-specific"):selectedIds.length>1?(selectedIds.length+" selected · drag any to move as a group"):"Editing · Shift-click to select multiple"}</div>
       </div>
-      {!isPreview && lastSelected.current && findInTree(elements,lastSelected.current) && <aside className="w-60 border-l border-slate-200 bg-white p-4 z-40 overflow-auto"><div className="font-medium text-sm">{findInTree(elements,lastSelected.current)?.elementTag === "button" ? "Button & section links" : "Section settings"}</div><p className="text-xs text-slate-500 mt-1">Name a section to create a link target.</p><label className="block text-xs text-slate-500 mt-4 mb-1">Section name</label><input placeholder="e.g. About, Contact" value={findInTree(elements,lastSelected.current)?.sectionName || ""} onChange={e=>{const id=lastSelected.current!;setElements(prev=>({...prev,[id]:{...prev[id],sectionName:e.target.value,sectionId:e.target.value?"section-"+id:undefined}}))}} className="w-full border rounded-lg px-2 py-2 text-sm"/>{findInTree(elements,lastSelected.current)?.elementTag === "button" && <><label className="block text-xs text-slate-500 mt-4 mb-1">Button label</label><input value={findInTree(elements,lastSelected.current)?.content || ""} onChange={e=>{const id=lastSelected.current!;setElements(prev=>({...prev,[id]:{...prev[id],content:e.target.value}}))}} className="w-full border rounded-lg px-2 py-2 text-sm"/><label className="block text-xs text-slate-500 mt-4 mb-1">Destination</label><select value={findInTree(elements,lastSelected.current)?.linkTarget || ""} onChange={e=>{const id=lastSelected.current!;setElements(prev=>({...prev,[id]:{...prev[id],linkTarget:e.target.value}}))}} className="w-full border rounded-lg px-2 py-2 text-sm bg-white"><option value="">No navigation</option><optgroup label="Pages">{pages.filter(page=>page.id!==activePage).map(page=><option key={page.id} value={page.id}>{page.name}</option>)}</optgroup><optgroup label="Sections on this page">{Object.entries(elements).filter(([id,item])=>id!==lastSelected.current&&item.sectionId).map(([id,item])=><option key={id} value={"#"+item.sectionId}>{item.sectionName || item.content || "Section"}</option>)}</optgroup></select></>}</aside>}
+      </div>
+      {!isPreview && lastSelected.current && <ControlPanel
+        contolPanelPosition={controlPanelPosition}
+        iscontrolPanelVisible={iscontrolPanelVisible}
+        onUpdateMinimized={value => setIscontrolPanelVisible(value)}
+        onPointerDown={event => HandleControlPanelPointerDown({ event, isControlPanelSelected, pointerOffset, setControlPanelPosition, elements: displayElements, lastSelected, setElements: setCanvasElements })}
+        onPointerUp={event => HandleControlPanelPointerUp({ event, isControlPanelSelected, pointerOffset, setControlPanelPosition, elements: displayElements, lastSelected })}
+        onSetControlPanelPosition={event => HandlePointerMove({ event, isControlPanelSelected, pointerOffset, setControlPanelPosition, lastSelected, elements: displayElements, setElements: setCanvasElements })}
+        currentElement={lastSelected.current}
+        elements={displayElements}
+        pages={pages}
+        activePage={activePage}
+        onUpdateStyle={setCanvasElements}
+        onDeleteElement={() => setElements(previous => removeElementFromTree({ elements: previous, targetId: lastSelected.current! }))}
+        onDelinkElement={handleDelinkeElement}
+        isDocked={Boolean(responsiveEditDevice)}
+        responsiveDevice={responsiveEditDevice || undefined}
+      />}
       </div>
       {showTemplates && <div className="fixed inset-0 z-[100] bg-slate-950/40 grid place-items-center p-4" onClick={()=>setShowTemplates(false)}><div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl p-6" onClick={e=>e.stopPropagation()}><div className="flex justify-between"><div><p className="text-xs uppercase tracking-widest text-slate-400">Get a head start</p><h2 className="text-2xl font-semibold mt-1">Choose a business starter</h2><p className="mt-1 text-sm text-slate-500">Each one includes linked pages, stock photography, and ready-to-edit sections.</p></div><button onClick={()=>setShowTemplates(false)} className="text-xl text-slate-400">×</button></div><div className="grid gap-4 mt-6 sm:grid-cols-2">{siteStarters.map(template=><button key={template.id} onClick={()=>chooseTemplate(template.id)} className="text-left border border-slate-200 rounded-xl overflow-hidden hover:border-[#315b45] hover:shadow-md"><img src={template.cover} alt="" className="h-32 w-full object-cover"/><div className="p-4"><span className="text-[10px] uppercase tracking-widest text-slate-400">{template.category}</span><div className="font-semibold mt-1">{template.name}</div><p className="text-xs text-slate-500 mt-1">{template.description}</p></div></button>)}</div><button onClick={()=>addPage("Page "+(pages.length+1))} className="mt-5 text-sm text-slate-600"><Plus size={15} className="inline mr-1"/>Start with a blank page</button></div></div>}
       {historyOpen && <div className="fixed inset-0 z-[110] bg-slate-950/40 grid place-items-center p-4" onClick={()=>setHistoryOpen(false)}><div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6" onClick={e=>e.stopPropagation()}><div className="flex items-start justify-between"><div><p className="text-xs uppercase tracking-widest text-slate-400">Restore point</p><h2 className="text-2xl font-semibold mt-1">Version history</h2><p className="text-sm text-slate-500 mt-1">Save a named snapshot of this page, then restore it later.</p></div><button onClick={()=>setHistoryOpen(false)} className="text-xl text-slate-400">×</button></div><button onClick={saveVersion} className="mt-5 w-full rounded-xl bg-slate-900 text-white py-3"><Save size={15} className="inline mr-2"/>Save current version</button><div className="mt-5 max-h-80 overflow-auto space-y-2">{versions.filter(version=>version.pageId===activePage).map(version=><div key={version.id} className="flex items-center gap-3 rounded-xl border p-3"><History size={16} className="text-slate-400"/><div className="flex-1"><div className="text-sm font-medium">{version.name}</div><div className="text-xs text-slate-500">{new Date(version.createdAt).toLocaleString()} · {Object.keys(version.elements).length} elements</div></div><button onClick={()=>restoreVersion(version)} className="rounded-lg border px-3 py-1.5 text-xs hover:bg-slate-50">Restore</button></div>)}{versions.filter(version=>version.pageId===activePage).length===0&&<p className="py-6 text-center text-sm text-slate-400">No saved versions for this page yet.</p>}</div></div></div>}
       {showCatalogueForm && <div className="fixed inset-0 z-[110] bg-slate-950/40 grid place-items-center p-4" onClick={()=>setShowCatalogueForm(false)}><form className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6" onClick={e=>e.stopPropagation()} onSubmit={e=>{e.preventDefault();if(!catalogueDraft.name.trim())return;if(editingCatalogueId){setCatalogue(old=>old.map(item=>item.id===editingCatalogueId?{...item,...catalogueDraft,name:catalogueDraft.name.trim()}:item))}else{setCatalogue(old=>[...old,{...catalogueDraft,id:crypto.randomUUID(),name:catalogueDraft.name.trim()}])}setEditingCatalogueId(null);setCatalogueDraft({name:"",kind:"Product",price:"",description:""});setShowCatalogueForm(false);setActiveSidebar("catalogue")}}><div className="flex items-start justify-between"><div><p className="text-xs uppercase tracking-widest text-slate-400">Catalogue</p><h2 className="text-2xl font-semibold mt-1">{editingCatalogueId?"Edit catalogue item":"Add a product or service"}</h2></div><button type="button" onClick={()=>setShowCatalogueForm(false)} className="text-xl text-slate-400">×</button></div><label className="block text-xs text-slate-500 mt-5 mb-1">Item name</label><input required autoFocus value={catalogueDraft.name} onChange={e=>setCatalogueDraft(old=>({...old,name:e.target.value}))} placeholder="e.g. Handmade ceramic mug" className="w-full border rounded-lg px-3 py-2 text-sm"/><div className="grid grid-cols-2 gap-3 mt-4"><div><label className="block text-xs text-slate-500 mb-1">Type</label><select value={catalogueDraft.kind} onChange={e=>setCatalogueDraft(old=>({...old,kind:e.target.value as "Product"|"Service"}))} className="w-full border rounded-lg px-3 py-2 text-sm bg-white"><option>Product</option><option>Service</option></select></div><div><label className="block text-xs text-slate-500 mb-1">Price</label><input value={catalogueDraft.price} onChange={e=>setCatalogueDraft(old=>({...old,price:e.target.value}))} placeholder="e.g. R420" className="w-full border rounded-lg px-3 py-2 text-sm"/></div></div><label className="block text-xs text-slate-500 mt-4 mb-1">Description</label><textarea value={catalogueDraft.description} onChange={e=>setCatalogueDraft(old=>({...old,description:e.target.value}))} placeholder="Describe what customers get" rows={3} className="w-full border rounded-lg px-3 py-2 text-sm resize-y"/><button type="submit" className="mt-5 w-full rounded-xl bg-slate-900 text-white py-3">{editingCatalogueId?"Save changes":"Save catalogue item"}</button></form></div>}
-      {showPublish && <div className="fixed inset-0 z-[100] bg-slate-950/40 grid place-items-center p-4" onClick={()=>setShowPublish(false)}><div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-7" onClick={e=>e.stopPropagation()}><div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-700 grid place-items-center"><Rocket/></div><h2 className="text-2xl font-semibold mt-4">Your site is saved</h2><p className="text-sm text-slate-500 mt-2">This builder currently saves your work in this browser. Add a hosting connection to publish a live website.</p><div className="mt-5 rounded-xl bg-slate-50 p-4 text-sm"><b>Before publishing</b><p className="text-slate-500 mt-1">Preview every page, connect your buttons, and add your products or service details.</p></div><button onClick={()=>{setShowPublish(false);setIsPreview(true)}} className="mt-6 w-full rounded-xl bg-slate-900 text-white py-3">Preview my site</button><button onClick={()=>setShowPublish(false)} className="mt-3 w-full py-2 text-sm text-slate-500">Back to editor</button></div></div>}
-      {showTutorial && <div className="fixed inset-0 z-[100] bg-slate-950/40 grid place-items-center p-4" onClick={()=>setShowTutorial(false)}><div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-7" onClick={e=>e.stopPropagation()}><div className="w-12 h-12 rounded-2xl bg-[#edf2e8] text-[#315b45] grid place-items-center"><BookOpen/></div><h2 className="text-2xl font-semibold mt-4">Your first storefront</h2><p className="text-sm text-slate-500 mt-2">A quick tour to get your site ready for customers.</p><ol className="mt-6 space-y-4 text-sm"><li><b>1. Pick a starting point.</b><p className="text-slate-500">Choose a template or create a blank page.</p></li><li><b>2. Add and arrange content.</b><p className="text-slate-500">Choose a tool, then drag and resize items on the canvas.</p></li><li><b>3. Build multiple pages.</b><p className="text-slate-500">Open Pages from the app toolbar and connect buttons to pages or sections.</p></li><li><b>4. Make room to scroll.</b><p className="text-slate-500">Increase page length to add more sections below the fold.</p></li></ol><button onClick={()=>{setShowTutorial(false);setShowTemplates(true)}} className="mt-7 w-full rounded-xl bg-[#315b45] text-white py-3">Choose a template</button></div></div>}
+      {showPublish && <div className="fixed inset-0 z-[100] grid place-items-center bg-slate-950/40 p-4" onClick={()=>{if(!publishing)setShowPublish(false)}}><div className="w-full max-w-md rounded-2xl bg-white p-7 shadow-2xl" onClick={e=>e.stopPropagation()}><div className="grid h-12 w-12 place-items-center rounded-2xl bg-emerald-50 text-emerald-700"><Rocket/></div><h2 className="mt-4 text-2xl font-semibold">Publish {siteName}</h2><p className="mt-2 text-sm text-slate-500">The .NET publishing service will save your pages and open your site at a local address based on its name.</p><div className="mt-5 rounded-xl bg-slate-50 p-4 text-sm"><b>Local address</b><p className="mt-1 text-slate-500">http://localhost:5173/{publishRoutePreview}</p></div>{publishError&&<p role="alert" className="mt-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{publishError}</p>}<button disabled={publishing} onClick={publishSite} className="mt-6 w-full rounded-xl bg-[#315b45] py-3 font-semibold text-white disabled:opacity-60">{publishing?"Publishing…":"Publish and open site"}</button><button disabled={publishing} onClick={()=>{setShowPublish(false);setIsPreview(true)}} className="mt-3 w-full rounded-xl border border-slate-200 py-2.5 text-sm text-slate-600">Preview first</button><button disabled={publishing} onClick={()=>setShowPublish(false)} className="mt-2 w-full py-2 text-sm text-slate-500">Back to editor</button></div></div>}
+      {tutorialReady && currentTutorialStep && <div className="pointer-events-none fixed inset-0 z-[150]">
+        {tutorialTargetRect && <div aria-hidden="true" className="fixed rounded-xl border-2 border-[#f4bd68]" style={{ left: tutorialTargetRect.left - 5, top: tutorialTargetRect.top - 5, width: tutorialTargetRect.width + 10, height: tutorialTargetRect.height + 10, boxShadow: "0 0 0 9999px rgba(17, 24, 39, .58)" }} />}
+        <section role="dialog" aria-modal="false" aria-labelledby="tour-title" className="pointer-events-auto fixed w-[min(360px,calc(100vw-32px))] rounded-2xl border border-[#e4e8e2] bg-white p-5 text-[#26352a] shadow-2xl" style={tutorialPopupPosition || { left: "50%", top: "50%", transform: "translate(-50%,-50%)" }}>
+          <div className="flex items-center justify-between"><span className="text-[11px] font-semibold uppercase tracking-widest text-[#748276]">Editor tour · {(tutorialStep ?? 0) + 1} of {editorTutorialSteps.length}</span><button onClick={()=>{localStorage.setItem("mycatalogue-editor-tour-complete","1");setTutorialStep(null)}} aria-label="Close tutorial" className="text-xl leading-none text-slate-400 hover:text-slate-700">×</button></div>
+          <div className="mt-4 flex items-start gap-3"><span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[#edf2e8] text-[#315b45]"><BookOpen size={19}/></span><div><h2 id="tour-title" className="text-lg font-semibold">{currentTutorialStep.title}</h2><p className="mt-1 text-sm leading-5 text-[#68746a]">{currentTutorialStep.body}</p></div></div>
+          <div className="mt-5 flex items-center justify-between border-t border-slate-100 pt-4"><button onClick={()=>{localStorage.setItem("mycatalogue-editor-tour-complete","1");setTutorialStep(null)}} className="text-sm text-slate-500 hover:text-slate-800">Skip tour</button><button onClick={()=>setTutorialStep(step=>{const current=step ?? 0;if(current+1===editorTutorialSteps.length){localStorage.setItem("mycatalogue-editor-tour-complete","1");return null}return current+1})} className="rounded-lg bg-[#315b45] px-4 py-2 text-sm font-semibold text-white hover:bg-[#254735]">{(tutorialStep ?? 0)+1===editorTutorialSteps.length?"Finish":"Next"}</button></div>
+        </section>
+      </div>}
       </div>
   );
 }

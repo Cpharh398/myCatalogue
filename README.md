@@ -34,6 +34,16 @@ npm run dev
 
 Your application will be available at `http://localhost:5173`.
 
+### Local publishing service
+
+Publishing uses the included .NET API. Run it in a second terminal from the project root:
+
+```bash
+npm run dev:api
+```
+
+The API stores published site definitions under `backend/MyCatalogue.Api/data/sites`. Use the editor's Publish button to open the site at `http://localhost:5173/<site-name>`.
+
 ## Building for Production
 
 Create a production build:

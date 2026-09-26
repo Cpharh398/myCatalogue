@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import type { Route } from "./+types/myworkspace";
 import { ArrowRight, Clock3, FilePlus2, FolderOpen, LayoutTemplate, Plus, Sparkles, Store } from "lucide-react";
 import { createSiteTemplate, siteStarters, type SitePage, type StarterTemplateId } from "~/util/siteTemplates";
@@ -14,6 +14,9 @@ export function meta({}: Route.MetaArgs) {
 export default function MyWorkspace() {
   const [sites, setSites] = useState<SiteProject[]>([]);
   const [filter, setFilter] = useState("All templates");
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [websiteName, setWebsiteName] = useState("");
+  const [pendingTemplateId, setPendingTemplateId] = useState<StarterTemplateId | null>(null);
   const hasSite = sites.length > 0;
   const categories = ["All templates", "Online store", "Appointments", "Food and drink", "Services & portfolio"];
   const visibleTemplates = siteStarters.filter(template => filter === "All templates" || template.category === filter);
@@ -22,16 +25,31 @@ export default function MyWorkspace() {
 
   const openEditor = (project: SiteProject) => { activateSiteProject(project); window.location.assign("/editor"); };
   const startTemplate = (id: StarterTemplateId) => {
-    const starter = siteStarters.find(template => template.id === id)!;
     const siteTemplate = createSiteTemplate(id);
-    const project = newSiteProject(siteTemplate.siteName, siteTemplate.pages, starter.id);
-    saveSiteProject(project);
-    activateSiteProject(project);
-    window.location.assign("/editor");
+    setPendingTemplateId(id);
+    setWebsiteName(siteTemplate.siteName);
+    setCreateDialogOpen(true);
   };
   const startBlank = () => {
-    const page: SitePage = { id: "home", name: "Home", elements: {} };
-    const project = newSiteProject("Untitled site", [page]);
+    setPendingTemplateId(null);
+    setWebsiteName("");
+    setCreateDialogOpen(true);
+  };
+  const createWebsite = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const name = websiteName.trim();
+    if (!name) return;
+    let pages: SitePage[] = [{ id: "home", name: "Home", elements: {} }];
+    if (pendingTemplateId) {
+      const siteTemplate = createSiteTemplate(pendingTemplateId);
+      const renameElements = (elements: SitePage["elements"]): SitePage["elements"] => Object.fromEntries(Object.entries(elements).map(([id, element]) => [id, {
+        ...element,
+        content: element.content === siteTemplate.siteName ? name : element.content,
+        canvasChildren: renameElements(element.canvasChildren || {}),
+      }]));
+      pages = siteTemplate.pages.map(page => ({ ...page, elements: renameElements(page.elements) }));
+    }
+    const project = newSiteProject(name, pages, pendingTemplateId || undefined);
     saveSiteProject(project);
     activateSiteProject(project);
     window.location.assign("/editor");
@@ -84,6 +102,16 @@ export default function MyWorkspace() {
           </div>
         </div>
       </div>
+      {createDialogOpen && <div className="fixed inset-0 z-50 grid place-items-center bg-[#16231a]/45 p-4" onMouseDown={event => { if (event.target === event.currentTarget) setCreateDialogOpen(false); }}>
+        <form onSubmit={createWebsite} className="w-full max-w-md rounded-2xl border border-[#e1e7df] bg-white p-6 shadow-2xl">
+          <p className="text-xs font-semibold uppercase tracking-[.15em] text-[#758276]">New website</p>
+          <h2 className="mt-2 text-2xl font-semibold">What should we call it?</h2>
+          <p className="mt-2 text-sm leading-6 text-[#748076]">This name appears in My Sites and helps create your local published address.</p>
+          <label htmlFor="website-name" className="mt-5 block text-sm font-medium text-[#465349]">Website name</label>
+          <input id="website-name" required autoFocus maxLength={80} value={websiteName} onChange={event => setWebsiteName(event.target.value)} placeholder="e.g. Fern & Field" className="mt-1.5 w-full rounded-lg border border-[#dce3da] px-3.5 py-3 text-sm outline-none focus:border-[#55785e] focus:ring-2 focus:ring-[#55785e]/15" />
+          <div className="mt-6 flex justify-end gap-2"><button type="button" onClick={() => setCreateDialogOpen(false)} className="rounded-lg px-4 py-2.5 text-sm font-medium text-[#647066] hover:bg-[#f4f6f3]">Cancel</button><button type="submit" disabled={!websiteName.trim()} className="rounded-lg bg-[#315b45] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#254735] disabled:opacity-50">Create website</button></div>
+        </form>
+      </div>}
     </main>
   );
 }
